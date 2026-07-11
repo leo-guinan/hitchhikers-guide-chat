@@ -28,6 +28,10 @@ export async function createCheckoutSession(request: CheckoutRequest): Promise<C
   body.set('cancel_url', request.cancelUrl);
   body.set('client_reference_id', request.sessionId);
   body.set('metadata[guide_session_id]', request.sessionId);
+  if (request.email) {
+    body.set('customer_email', request.email);
+    body.set('metadata[account_email]', request.email);
+  }
 
   const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
     method: 'POST',

@@ -14,6 +14,15 @@ export const ChatRequestSchema = z.object({
   day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
+export const EmailAuthRequestSchema = z.object({
+  email: z.string().email().transform((value) => value.toLowerCase()),
+});
+
+export const EmailAuthVerifySchema = z.object({
+  email: z.string().email().transform((value) => value.toLowerCase()),
+  code: z.string().regex(/^\d{6}$/),
+});
+
 export const ContextRequestSchema = z.object({
   sessionId: z.string().min(1),
   userMessage: z.string().min(1),
@@ -28,6 +37,7 @@ export const CheckoutRequestSchema = z.object({
   sessionId: z.string().min(1),
   successUrl: z.string().url(),
   cancelUrl: z.string().url(),
+  email: z.string().email().optional(),
 });
 
 export const DiaryCompressionRequestSchema = z.object({
@@ -48,9 +58,29 @@ export const FutureAnalysisRequestSchema = z.object({
 
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
+export type EmailAuthRequest = z.infer<typeof EmailAuthRequestSchema>;
+export type EmailAuthVerify = z.infer<typeof EmailAuthVerifySchema>;
 export type ContextRequestInput = z.infer<typeof ContextRequestSchema>;
 export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;
 export type FutureAnalysisRequestInput = z.infer<typeof FutureAnalysisRequestSchema>;
+
+export type Account = {
+  id: string;
+  email: string;
+  createdAt: string;
+  updatedAt: string;
+  paid: boolean;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+};
+
+export type AuthSession = {
+  token: string;
+  accountId: string;
+  email: string;
+  createdAt: string;
+  expiresAt: string;
+};
 
 export type ChatTurn = ChatMessage & {
   id: string;

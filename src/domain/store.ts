@@ -1,6 +1,9 @@
 import { appendFile, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { randomBytes, randomInt } from 'node:crypto';
 import path from 'node:path';
 import {
+  type Account,
+  type AuthSession,
   ContextRequestSchema,
   FutureAnalysisRequestSchema,
   type ChatMessage,
@@ -17,6 +20,9 @@ const dataDir = process.env.GUIDE_DATA_DIR ?? path.join(process.cwd(), 'data');
 const requestDir = path.join(dataDir, 'requests');
 const diaryDir = path.join(dataDir, 'diary');
 const futureDir = path.join(dataDir, 'future-analysis');
+const accountDir = path.join(dataDir, 'accounts');
+const authCodeDir = path.join(dataDir, 'auth-codes');
+const sessionDir = path.join(dataDir, 'sessions');
 const requestLog = path.join(dataDir, 'context-requests.jsonl');
 const futureLog = path.join(dataDir, 'future-analysis.jsonl');
 
@@ -24,10 +30,81 @@ export async function initStore(): Promise<void> {
   await mkdir(requestDir, { recursive: true });
   await mkdir(diaryDir, { recursive: true });
   await mkdir(futureDir, { recursive: true });
+  await mkdir(accountDir, { recursive: true });
+  await mkdir(authCodeDir, { recursive: true });
+  await mkdir(sessionDir, { recursive: true });
 }
 
 export function todayKey(now = new Date()): string {
   return now.toISOString().slice(0, 10);
+}
+
+export async function requestEmailCode(email: string): Promise<{ email: string; expiresAt: string; devCode?: string }> {
+  await initStore();
+  const normalized = email.toLowerCase();
+  const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+  const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
+  await writeFile(authCodePath(normalized), JSON.stringify({ email: normalized, code, expiresAt }, null, 2));
+  // No mail provider yet. Returning the code keeps local/VPS auth testable without pretending email was sent.
+  return { email: normalized, expiresAt, devCode: code };
+}
+
+export async function verifyEmailCode(email: string, code: string): Promise<{ account: Account; session: AuthSession }> {
+  await initStore();
+  const normalized = email.toLowerCase();
+  const record = JSON.parse(await readFile(authCodePath(normalized), 'utf8')) as { code: string; expiresAt: string };
+  if (record.code !== code) throw new Error('Invalid sign-in code');
+  if (Date.parse(record.expiresAt) < Date.now()) throw new Error('Sign-in code expired');
+  const account = await upsertAccount(normalized);
+  const createdAt = new Date().toISOString();
+  const session: AuthSession = {
+    token: `sess_${randomBytes(24).toString('hex')}`,
+    accountId: account.id,
+    email: account.email,
+    createdAt,
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
+  };
+  await writeFile(sessionPath(session.token), JSON.stringify(session, null, 2));
+  return { account, session };
+}
+
+export async function getSessionAccount(token: string | undefined): Promise<Account | null> {
+  if (!token) return null;
+  await initStore();
+  try {
+    const session = JSON.parse(await readFile(sessionPath(token), 'utf8')) as AuthSession;
+    if (Date.parse(session.expiresAt) < Date.now()) return null;
+    return await getAccountByEmail(session.email);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+export async function getAccountByEmail(email: string): Promise<Account | null> {
+  await initStore();
+  try {
+    return JSON.parse(await readFile(accountPath(email.toLowerCase()), 'utf8')) as Account;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+export async function markAccountPaid(email: string, stripe: { customerId?: string; subscriptionId?: string } = {}): Promise<Account> {
+  const account = await upsertAccount(email.toLowerCase());
+  const updated: Account = { ...account, paid: true, updatedAt: new Date().toISOString(), stripeCustomerId: stripe.customerId ?? account.stripeCustomerId, stripeSubscriptionId: stripe.subscriptionId ?? account.stripeSubscriptionId };
+  await writeFile(accountPath(updated.email), JSON.stringify(updated, null, 2));
+  return updated;
+}
+
+async function upsertAccount(email: string): Promise<Account> {
+  const existing = await getAccountByEmail(email);
+  if (existing) return existing;
+  const createdAt = new Date().toISOString();
+  const account: Account = { id: `acct_${hash(email).slice(0, 12)}`, email, createdAt, updatedAt: createdAt, paid: false };
+  await writeFile(accountPath(email), JSON.stringify(account, null, 2));
+  return account;
 }
 
 export async function createContextRequest(input: ContextRequestInput): Promise<ContextRequest> {
@@ -134,6 +211,18 @@ async function saveDiaryPage(page: DiaryPage): Promise<void> {
 
 function diaryPath(day: string): string {
   return path.join(diaryDir, `${day}.json`);
+}
+
+function accountPath(email: string): string {
+  return path.join(accountDir, `${hash(email)}.json`);
+}
+
+function authCodePath(email: string): string {
+  return path.join(authCodeDir, `${hash(email)}.json`);
+}
+
+function sessionPath(token: string): string {
+  return path.join(sessionDir, `${hash(token)}.json`);
 }
 
 function diarySearchText(page: DiaryPage): string {

@@ -32,13 +32,17 @@ npm run dev
 - `GET /` — chat UI
 - `GET /healthz` — health check
 - `GET /pricing` — single $42/month plan
-- `POST /chat` — answer a user message
+- `POST /auth/request-code` — request a six-digit email sign-in code
+- `POST /auth/verify` — verify code and return an account token
+- `GET /auth/me` — inspect signed-in account/paywall state
+- `POST /chat` — answer a user message; requires authenticated paid account
 - `GET /diary/today` — current day page
 - `GET /diary/:day` — expand one diary page
 - `GET /diary?query=...` — search diary pages and compressed entries
 - `POST /diary/:day/compress` — compress a day into a diary entry
 - `POST /future-analysis` — queue delayed human review for a diary page
 - `POST /checkout/session` — create a Stripe Checkout Session for `price_1Ts6ceGzXpChNrVvnNrQ44Ms`
+- `POST /stripe/webhook` — mark paid accounts from signed Stripe subscription events
 - `POST /context-requests` — ask a human to look something up/add context
 - `GET /context-requests` — operator request inbox
 
@@ -50,7 +54,10 @@ OPENAI_API_KEY=...
 OPENAI_MODEL=openai/gpt-5-mini
 STRIPE_PRICE_ID=price_1Ts6ceGzXpChNrVvnNrQ44Ms
 STRIPE_SECRET_KEY=<server-side-stripe-secret-key>
+STRIPE_WEBHOOK_SECRET=<stripe-webhook-signing-secret>
+GUIDE_FREE_ACCESS_EMAILS=founder@example.com # optional local/operator bypass
 GUIDE_DATA_DIR=./data
 ```
 
 If `STRIPE_SECRET_KEY` is absent, the checkout endpoint returns a 503 with an explicit configuration message instead of pretending checkout worked.
+`STRIPE_WEBHOOK_SECRET` is required before `/stripe/webhook` will accept subscription events.
