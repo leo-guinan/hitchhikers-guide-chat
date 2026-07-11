@@ -30,7 +30,7 @@ const headerHtml = `
     <a href="/">Today</a>
     <a href="/search">Atlas</a>
     <a href="#" id="bookReopen">The book</a>
-    <a class="cta" href="/">Open the diary</a>
+    <a class="cta" href="/enter">Open the diary</a>
   </nav>
 </header>`;
 
@@ -160,8 +160,8 @@ function setStatus(el,msg,ember){el.textContent=msg;el.style.color=ember?'#e8a48
 function setGate(){const signed=!!account;const paid=!!account?.paid;$('accStatus').textContent=signed?account.email+' // '+(paid?'paid':'unpaid'):'Signed out.';$('payStatus') && ($('payStatus').textContent=paid?'Paid account active. Diary open.':'Signed in. Subscribe to unseal the diary.');const veil=$('veil');if(veil)veil.style.display=(paid?'none':'flex');if($('composer')){$('composer').style.opacity=paid?1:.4;$('composer').style.pointerEvents=paid?'auto':'none';}const pay=$('payBtn');if(pay)pay.disabled=!signed||paid;if($('receipt')){$('receipt').innerHTML='session  <b>'+sessionId+'</b>\\npage     <b>'+fmtDate(today)+'</b>\\ngate     <b>'+(paid?'open':'locked')+'</b>\\nrequests logged for operator review';}}
 async function refreshMe(){try{const r=await api('/auth/me',{method:'GET'});account=r.account;setGate();}catch{account=null;setGate();}}
 $('sendCode').onclick=async()=>{const em=$('email').value.trim();if(!em){setStatus($('accStatus'),'Enter an email first — the code needs somewhere to land.',true);return;}try{const r=await api('/auth/request-code',{method:'POST',body:JSON.stringify({email:em})});setStatus($('accStatus'),'Code sent. Dev code: '+(r.devCode||'check your inbox'));}catch(err){setStatus($('accStatus'),'Auth error: '+err.message,true);}};
-$('verifyBtn').onclick=async()=>{const em=$('email').value.trim();const co=$('code').value.trim();if(co.trim().length<6){setStatus($('accStatus'),'That code is short a few digits.',true);return;}try{const r=await api('/auth/verify',{method:'POST',body:JSON.stringify({email:em,code:co})});token=r.token;localStorage.guideAuthToken=token;account=r.account;setGate();}catch(err){setStatus($('accStatus'),'Verify error: '+err.message,true);}};
-$('payBtn').onclick=async()=>{if(!account){setStatus($('accStatus'),'Sign in first, then subscribe.',true);$('email').focus();return;}try{$('payBtn').textContent='Creating Checkout…';const r=await api('/checkout/session',{method:'POST',body:JSON.stringify({sessionId,successUrl:location.origin+'/?checkout=success',cancelUrl:location.origin+'/?checkout=cancelled'})});if(r.checkout.url){location.href=r.checkout.url;return;}$('payBtn').textContent='Start at $42/month';setStatus($('accStatus'),r.checkout.error||'Stripe is not configured yet.',true);}catch(err){$('payBtn').textContent='Start at $42/month';setStatus($('accStatus'),'Stripe checkout not ready: '+err.message,true);}};
+$('verifyBtn').onclick=async()=>{const em=$('email').value.trim();const co=$('code').value.trim();if(co.trim().length<6){setStatus($('accStatus'),'That code is short a few digits.',true);return;}try{const r=await api('/auth/verify',{method:'POST',body:JSON.stringify({email:em,code:co})});token=r.token;localStorage.guideAuthToken=token;account=r.account;setGate();if(account&&account.paid)location.href='/app';}catch(err){setStatus($('accStatus'),'Verify error: '+err.message,true);}};
+$('payBtn').onclick=async()=>{if(!account){setStatus($('accStatus'),'Sign in first, then subscribe.',true);$('email').focus();return;}try{$('payBtn').textContent='Creating Checkout…';const r=await api('/checkout/session',{method:'POST',body:JSON.stringify({sessionId,successUrl:location.origin+'/app?checkout=success',cancelUrl:location.origin+'/enter?checkout=cancelled'})});if(r.checkout.url){location.href=r.checkout.url;return;}$('payBtn').textContent='Start at $42/month';setStatus($('accStatus'),r.checkout.error||'Stripe is not configured yet.',true);}catch(err){$('payBtn').textContent='Start at $42/month';setStatus($('accStatus'),'Stripe checkout not ready: '+err.message,true);}};
 $('futureBtn').onclick=async()=>{try{const r=await api('/future-analysis',{method:'POST',body:JSON.stringify({sessionId,day:today,delay:delayFor($('window').value),question:$('futureNote').value||undefined})});setStatus($('futureStatus'),'Queued '+r.request.id+' ('+$('window').value+') for delayed human review.');}catch(err){setStatus($('futureStatus'),'Future queue error: '+err.message,true);}};
 function delayFor(v){return v==='24h'?'24h':v==='72h'?'72h':v==='1w'?'1w':'all';}
 $('humanBtn').onclick=async()=>{const q=$('humanAsk').value.trim();if(!q){setStatus($('humanStatus'),'Tell the human what to look up first.',true);return;}try{const r=await api('/context-requests',{method:'POST',body:JSON.stringify({sessionId,userMessage:lastUserMessage||'(manual context request)',missingContext:q,urgency:$('urgency').value,contact:$('contact').value||undefined,source:'manual',diaryDay:today})});setStatus($('humanStatus'),'Request '+r.request.id+' logged ('+$('urgency').value+'). An operator will pick it up.');}catch(err){setStatus($('humanStatus'),'Error: '+err.message,true);}};
@@ -187,7 +187,7 @@ let lastUserMessage='';
   const x=$('bookClose'); if(x) x.onclick=close;
   overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
   document.addEventListener('keydown',e=>{ if(!overlay.classList.contains('open'))return; if(e.key==='Escape')close(); if(e.key==='ArrowRight')show(i+1); if(e.key==='ArrowLeft')show(i-1); });
-  const start=$('bookStart'); if(start) start.onclick=()=>{ close(); $('email') && $('email').focus(); };
+  const start=$('bookStart'); if(start) start.onclick=()=>{ close(); location.href='/enter'; };
   const reopen=$('bookReopen'); if(reopen) reopen.onclick=e=>{ e.preventDefault(); open(); };
   let seen=false; try{ seen=localStorage.guideBookSeen==='1'; }catch{}
   if(!seen && !location.search.includes('checkout=')) setTimeout(open, 600);
@@ -273,5 +273,13 @@ const extraCss = `
 .book-dots i{width:8px;height:8px;border-radius:50%;background:var(--plum-dim);display:block;transition:background .2s}
 .book-dots i.on{background:var(--gold);box-shadow:0 0 8px var(--gold)}
 @media (max-width:600px){.book-stage{padding:46px 24px 34px}.book-page p{font-size:16px}}
+.enter{max-width:560px;margin:80px auto 60px;padding:0 24px}
+.enter-card{background:var(--void-2);border:1px solid var(--gold-faint);border-radius:16px;padding:36px 32px}
+.enter .lede{color:var(--ink-dim);font-size:16px;margin:14px 0 26px}
+.enter .panel{margin-bottom:22px}
+.enter .panel h2,.enter .panel .annot{font-size:12px}
+.enter .panel input,.enter .panel textarea,.enter .panel select{margin-bottom:12px;width:100%}
+.enter .panel .btn{width:100%}
+.enter .note{font-size:11px;margin-top:10px}
 `;
 

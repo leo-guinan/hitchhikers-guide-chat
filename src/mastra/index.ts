@@ -29,7 +29,7 @@ import {
   todayKey,
   verifyEmailCode,
 } from '../domain/store';
-import { appHtml, searchHtml } from '../ui/app-html';
+import { appHtml, searchHtml, enterHtml, appPageHtml } from '../ui/app-html';
 
 await initStore();
 
@@ -42,6 +42,16 @@ export const mastra = new Mastra({
         method: 'GET',
         requiresAuth: false,
         handler: async () => new Response(appHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+      }),
+      registerApiRoute('/enter', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async () => new Response(enterHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+      }),
+      registerApiRoute('/app', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async () => new Response(appPageHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
       }),
       registerApiRoute('/search', {
         method: 'GET',

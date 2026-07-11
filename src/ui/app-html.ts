@@ -1,6 +1,6 @@
 import { pageShell } from './app-shell';
 
-const todayBody = `
+const entryBody = `
 <section class="hero">
   <div>
     <span class="annot hero-annot">Expedition log <span class="dot">·</span> one traveler <span class="dot">·</span> one guide <span class="dot">·</span> T−∞ and counting</span>
@@ -8,8 +8,7 @@ const todayBody = `
     <p class="lede">
       The Guide keeps a diary with you — one chat context per day, compressed each night into
       an entry on the map. Wander with Leo, flag the days that drift too far, and when the
-      Guide runs out of sky, <a href="#human">ask a human to look something up</a>.
-      Old pages live in <a href="/search">the Atlas</a>.
+      Guide runs out of sky, ask a human to look something up.
     </p>
     <div class="price-line">
       <span class="price">$42</span>
@@ -60,8 +59,34 @@ const todayBody = `
     </svg>
     <figcaption class="annot dim">Fig. 01 <span class="dot">·</span> the road so far <span class="dot">·</span> do not panic</figcaption>
   </figure>
-</section>
+</section>`;
 
+const enterBody = `
+<section class="enter">
+  <div class="enter-card">
+    <span class="annot">Boarding <span class="dot">·</span> sign in, then the toll</span>
+    <h1>Open the diary.</h1>
+    <p class="lede">One plan, whole sky — $42/month. Sign in with your email, then subscribe. The diary unseals every morning after.</p>
+    <section class="panel" id="account" aria-labelledby="accTitle">
+      <h2 class="annot" id="accTitle">Account <span class="dot">·</span> sign-in by starlight</h2>
+      <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+      <button class="btn" id="sendCode">Send sign-in code</button>
+      <div style="height:12px"></div>
+      <input type="text" id="code" inputmode="numeric" placeholder="6-digit code">
+      <button class="btn ghost" id="verifyBtn">Verify email</button>
+      <p class="note" id="accStatus">Signed out.</p>
+    </section>
+    <section class="panel" aria-labelledby="payTitle">
+      <h2 class="annot" id="payTitle">Paywall <span class="dot">·</span> the toll</h2>
+      <p style="color:var(--ink-dim);font-size:14.5px;margin-bottom:16px">Signed in? Subscribe to unseal the diary.</p>
+      <button class="btn solid" id="payBtn">Start at $42/month</button>
+      <p class="note" id="payStatus">Signed out.</p>
+    </section>
+    <a class="annot dim" href="/" style="display:block;margin-top:8px">← back to the cover</a>
+  </div>
+</section>`;
+
+const appBody = `
 <div class="grid">
   <main>
     <section class="panel diary gated" aria-labelledby="todayTitle">
@@ -82,16 +107,13 @@ const todayBody = `
       </div>
       <div class="veil" id="veil">
         <span class="annot ember">Sealed page <span class="dot">·</span> account gated</span>
-        <p>Today's chat context is behind the gate. Sign in with your email, subscribe once, and the diary opens every morning after.</p>
-        <button class="btn solid" id="veilBtn">Start at $42/month</button>
-        <span class="annot dim" style="font-size:10px">already aboard? sign in on the right →</span>
+        <p>Today's chat context is behind the gate. <a href="/enter">Open the diary</a> to sign in and subscribe.</p>
+        <a class="btn solid" href="/enter" id="veilBtn">Start at $42/month</a>
       </div>
     </section>
   </main>
 
   <aside class="rail">
-    ${accountPanelToday()}
-    ${payPanelToday()}
     ${futurePanelToday()}
     ${humanPanelToday()}
     ${receiptPanelToday()}
@@ -102,7 +124,6 @@ const todayBody = `
 (async function(){
   const today=new Date().toISOString().slice(0,10);
   $('diaryDate').textContent=fmtDate(today);
-  $('veilBtn').onclick=()=>{ $('email').focus(); $('payBtn').click(); };
   async function loadDiary(){
     if(!account) return;
     try{
@@ -112,11 +133,12 @@ const todayBody = `
     }catch(e){}
   }
   await refreshMe();
+  if(!account||!account.paid){ location.href='/enter'; return; }
   if(account&&account.paid) await loadDiary();
   $('composer').addEventListener('submit',async e=>{
     e.preventDefault();
     const box=$('ask'); const text=box.value.trim(); if(!text) return;
-    if(!account||!account.paid){ $('veilBtn').click(); return; }
+    if(!account||!account.paid){ location.href='/enter'; return; }
     addMsg('you','You',text); box.value=''; lastUserMessage=text;
     try{
       const r=await api('/chat',{method:'POST',body:JSON.stringify({sessionId,message:text,day:today})});
@@ -127,7 +149,7 @@ const todayBody = `
     }catch(err){ addMsg('guide','Leo · the guide','Error: '+err.message); }
   });
   $('compressBtn').addEventListener('click',async()=>{
-    if(!account||!account.paid){ $('veilBtn').click(); return; }
+    if(!account||!account.paid){ location.href='/enter'; return; }
     try{ const r=await api('/diary/'+today+'/compress',{method:'POST',body:JSON.stringify({sessionId})}); $('compressBtn').textContent='Compressed '+r.entry.turnCount+' turns into entry '+r.entry.id; }catch(err){ $('compressBtn').textContent='Compression error: '+err.message; }
   });
   function addMsg(cls,who,text){
@@ -163,17 +185,19 @@ const atlasBody = `
     <input type="text" id="searchDiary" placeholder="Search the diary — a word, a date, a hunch">
     <button type="submit" class="btn">Search</button>
   </form>
+  <a class="annot dim" href="/app" style="display:block;margin-top:18px">← back to today's page</a>
 </section>
 
 <script>
 (async function(){
   await refreshMe();
+  if(!account||!account.paid){ location.href='/enter'; return; }
   const entriesEl=$('entries'); const metaEl=$('atlasMeta');
   async function load(q){
     entriesEl.innerHTML='';
     let pages=[];
     try{ const r=await api('/diary'+(q?'?query='+encodeURIComponent(q):''),{method:'GET'}); pages=r.pages; }
-    catch(e){ entriesEl.innerHTML='<p class="annot ember">Search needs a paid account. Sign in first.</p>'; return; }
+    catch(e){ entriesEl.innerHTML='<p class="annot ember">Search needs a paid account. <a href="/enter">Open the diary</a>.</p>'; return; }
     const total=pages.length; let flares=0;
     pages.forEach(p=>{
       const e=p.entry;
@@ -193,12 +217,6 @@ const atlasBody = `
 })();
 </script>`;
 
-function accountPanelToday() {
-  return `<section class="panel" id="account" aria-labelledby="accTitle"><h2 class="annot" id="accTitle">Account <span class="dot">·</span> sign-in by starlight</h2><input type="email" id="email" placeholder="you@example.com" autocomplete="email"><button class="btn" id="sendCode">Send sign-in code</button><div style="height:12px"></div><input type="text" id="code" inputmode="numeric" placeholder="6-digit code"><button class="btn ghost" id="verifyBtn">Verify email</button><p class="note" id="accStatus">Signed out.</p></section>`;
-}
-function payPanelToday() {
-  return `<section class="panel" aria-labelledby="payTitle"><h2 class="annot" id="payTitle">Paywall <span class="dot">·</span> the toll</h2><p style="color:var(--ink-dim);font-size:14.5px;margin-bottom:16px">Sign in first, then subscribe. One plan, whole sky.</p><button class="btn solid" id="payBtn">Start at $42/month</button><p class="note">one plan · whole sky</p></section>`;
-}
 function futurePanelToday() {
   return `<section class="panel" aria-labelledby="futTitle"><h2 class="annot" id="futTitle">Send chat log to the future</h2><select id="window"><option value="24h">Last 24 hours</option><option value="72h">Last 72 hours</option><option value="1w">Last 7 days</option><option value="all">This entire diary</option></select><textarea id="futureNote" placeholder="Optional: what should future analysis look for?"></textarea><button class="btn" id="futureBtn">Send to the future</button><p class="note" id="futureStatus">No future review queued yet.</p></section>`;
 }
@@ -209,5 +227,7 @@ function receiptPanelToday() {
   return `<section class="panel receipt" aria-labelledby="rcTitle"><h2 class="annot" id="rcTitle">Operator receipt</h2><pre id="receipt">session  <b>—</b>\npage     <b>—</b>\ngate     <b>locked</b>\nrequests logged for operator review</pre></section>`;
 }
 
-export const appHtml = pageShell('today', todayBody, '');
+export const appHtml = pageShell('today', entryBody, '');
+export const enterHtml = pageShell('enter', enterBody, '');
+export const appPageHtml = pageShell('today', appBody, '');
 export const searchHtml = pageShell('atlas', atlasBody, '');
