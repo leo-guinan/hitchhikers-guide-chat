@@ -29,6 +29,7 @@ const headerHtml = `
   <nav>
     <a href="/">Today</a>
     <a href="/search">Atlas</a>
+    <a href="#" id="bookReopen">The book</a>
     <a class="cta" href="/">Open the diary</a>
   </nav>
 </header>`;
@@ -37,7 +38,50 @@ const footerHtml = `
 <footer>
   <span class="annot dim">chart plate 01 <span class="dot">·</span> destination RA 17h 45m · DEC −29° 00′ <span class="dot">·</span> printed 2026.07.11</span>
   <span class="annot dim right">mostly harmless <span class="dot">·</span> don't forget your towel</span>
-</footer>`;
+</footer>
+
+<div class="book-overlay" id="book" aria-hidden="true">
+  <div class="book-stage" role="dialog" aria-modal="true" aria-label="The Guide, a book">
+    <button class="book-close" id="bookClose" aria-label="Skip the book">✕</button>
+    <div class="book-pages">
+      <section class="book-page" data-i="0">
+        <span class="annot">Chapter I <span class="dot">·</span> the cover</span>
+        <h2>Don't panic<br>about the future.</h2>
+        <p>This is not a chatbot with a login wall. It's a <em>guide</em> — a book you write with an AI, one page a day, with a human on call for the parts the machine can't reach.</p>
+        <p class="book-foot">Turn the page →</p>
+      </section>
+      <section class="book-page" data-i="1">
+        <span class="annot">Chapter II <span class="dot">·</span> today</span>
+        <h2>Each day<br>is a page.</h2>
+        <p>Talk to Leo, your guide. One fresh conversation per day. At night it's compressed into a small, dense diary entry that's actually yours.</p>
+        <p class="book-foot">Turn the page →</p>
+      </section>
+      <section class="book-page" data-i="2">
+        <span class="annot">Chapter III <span class="dot">·</span> the atlas</span>
+        <h2>The Atlas<br>remembers.</h2>
+        <p>Every entry becomes a waypoint on the star-line. Search it, wander it. Days that drifted too far are flagged with a quiet ember flare.</p>
+        <p class="book-foot">Turn the page →</p>
+      </section>
+      <section class="book-page" data-i="3">
+        <span class="annot">Chapter IV <span class="dot">·</span> the human</span>
+        <h2>When the chart<br>runs out of sky.</h2>
+        <p>The Guide knows its limits. When it needs context it doesn't have, it asks a human operator to look things up and write them back into your diary.</p>
+        <p class="book-foot">Turn the page →</p>
+      </section>
+      <section class="book-page" data-i="4">
+        <span class="annot ember">The last page <span class="dot">·</span> your move</span>
+        <h2>Your journey<br>begins.</h2>
+        <p>Open the diary, sign in with your email, and subscribe — one plan, whole sky. Then the book is yours to keep writing.</p>
+        <button class="btn solid" id="bookStart">Don't panic · start your journey</button>
+      </section>
+    </div>
+    <div class="book-nav">
+      <button class="book-arrow" id="bookPrev" aria-label="Previous page">←</button>
+      <span class="book-dots" id="bookDots"></span>
+      <button class="book-arrow" id="bookNext" aria-label="Next page">→</button>
+    </div>
+  </div>
+</div>`;
 
 const orbfigSvg = `
 <figure class="orbfig" aria-label="Engraved chart of a dark star with travelers walking toward it">
@@ -104,66 +148,6 @@ const heroHtml = `
   ${orbfigSvg}
 </section>`;
 
-const accountPanel = `
-<section class="panel" id="account" aria-labelledby="accTitle">
-  <h2 class="annot" id="accTitle">Account <span class="dot">·</span> sign-in by starlight</h2>
-  <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
-  <button class="btn" id="sendCode">Send sign-in code</button>
-  <div style="height:12px"></div>
-  <input type="text" id="code" inputmode="numeric" placeholder="6-digit code">
-  <button class="btn ghost" id="verifyBtn">Verify email</button>
-  <p class="note" id="accStatus">Signed out.</p>
-</section>`;
-
-const payPanel = `
-<section class="panel" aria-labelledby="payTitle">
-  <h2 class="annot" id="payTitle">Paywall <span class="dot">·</span> the toll</h2>
-  <p style="color:var(--ink-dim);font-size:14.5px;margin-bottom:16px">Sign in first, then subscribe. One plan, whole sky.</p>
-  <button class="btn solid" id="payBtn">Start at $42/month</button>
-  <p class="note">stripe price: price_1Ts6ceGzXpChNrVvnNrQ44Ms</p>
-</section>`;
-
-const futurePanel = `
-<section class="panel" aria-labelledby="futTitle">
-  <h2 class="annot" id="futTitle">Send chat log to the future</h2>
-  <select id="window">
-    <option value="24h">Last 24 hours</option>
-    <option value="72h">Last 72 hours</option>
-    <option value="1w">Last 7 days</option>
-    <option value="all">This entire diary</option>
-  </select>
-  <textarea id="futureNote" placeholder="Optional: what should future analysis look for?"></textarea>
-  <button class="btn" id="futureBtn">Send to the future</button>
-  <p class="note" id="futureStatus">No future review queued yet.</p>
-</section>`;
-
-const humanPanel = `
-<section class="panel" id="human" aria-labelledby="humTitle">
-  <h2 class="annot" id="humTitle">Human context request</h2>
-  <p style="color:var(--ink-dim);font-size:14.5px;margin-bottom:16px">
-    When the Guide's chart runs out, a human operator can look something up
-    or add context to your diary.
-  </p>
-  <textarea id="humanAsk" placeholder="What should a human look up or add?"></textarea>
-  <select id="urgency">
-    <option value="normal">Normal orbit</option>
-    <option value="soon">Elevated · this week</option>
-    <option value="blocked">Flare · as soon as a human wakes</option>
-  </select>
-  <input type="text" id="contact" placeholder="Optional contact / delivery note">
-  <button class="btn" id="humanBtn">Request human context</button>
-  <p class="note" id="humanStatus">No request sent yet. Requests are logged for operator review.</p>
-</section>`;
-
-const receiptPanel = `
-<section class="panel receipt" aria-labelledby="rcTitle">
-  <h2 class="annot" id="rcTitle">Operator receipt</h2>
-  <pre id="receipt">session  <b>—</b>
-page     <b>—</b>
-gate     <b>locked</b>
-requests logged for operator review</pre>
-</section>`;
-
 const sharedScript = `
 const $=id=>document.getElementById(id);
 const sessionId=localStorage.guideSessionId ||= crypto.randomUUID();
@@ -182,6 +166,32 @@ $('futureBtn').onclick=async()=>{try{const r=await api('/future-analysis',{metho
 function delayFor(v){return v==='24h'?'24h':v==='72h'?'72h':v==='1w'?'1w':'all';}
 $('humanBtn').onclick=async()=>{const q=$('humanAsk').value.trim();if(!q){setStatus($('humanStatus'),'Tell the human what to look up first.',true);return;}try{const r=await api('/context-requests',{method:'POST',body:JSON.stringify({sessionId,userMessage:lastUserMessage||'(manual context request)',missingContext:q,urgency:$('urgency').value,contact:$('contact').value||undefined,source:'manual',diaryDay:today})});setStatus($('humanStatus'),'Request '+r.request.id+' logged ('+$('urgency').value+'). An operator will pick it up.');}catch(err){setStatus($('humanStatus'),'Error: '+err.message,true);}};
 let lastUserMessage='';
+(function bookOnboarding(){
+  const overlay=$('book'); if(!overlay) return;
+  const pages=[...overlay.querySelectorAll('.book-page')];
+  const dots=$('bookDots'); const prev=$('bookPrev'); const next=$('bookNext');
+  let i=0;
+  if(dots){ pages.forEach((_,n)=>{ const d=document.createElement('i'); if(n===0)d.className='on'; dots.appendChild(d); }); }
+  const dotEls=[...dots?dots.children:[]];
+  function show(n){
+    i=Math.max(0,Math.min(pages.length-1,n));
+    pages.forEach((p,n)=>p.classList.toggle('active',n===i));
+    dotEls.forEach((d,n)=>d.classList.toggle('on',n===i));
+    if(prev) prev.disabled=i===0;
+    if(next) next.disabled=i===pages.length-1;
+  }
+  function open(){ overlay.classList.add('open'); overlay.setAttribute('aria-hidden','false'); show(0); }
+  function close(){ overlay.classList.remove('open'); overlay.setAttribute('aria-hidden','true'); try{ localStorage.guideBookSeen='1'; }catch{} }
+  if(next) next.onclick=()=>show(i+1);
+  if(prev) prev.onclick=()=>show(i-1);
+  const x=$('bookClose'); if(x) x.onclick=close;
+  overlay.addEventListener('click',e=>{ if(e.target===overlay) close(); });
+  document.addEventListener('keydown',e=>{ if(!overlay.classList.contains('open'))return; if(e.key==='Escape')close(); if(e.key==='ArrowRight')show(i+1); if(e.key==='ArrowLeft')show(i-1); });
+  const start=$('bookStart'); if(start) start.onclick=()=>{ close(); $('email') && $('email').focus(); };
+  const reopen=$('bookReopen'); if(reopen) reopen.onclick=e=>{ e.preventDefault(); open(); };
+  let seen=false; try{ seen=localStorage.guideBookSeen==='1'; }catch{}
+  if(!seen && !location.search.includes('checkout=')) setTimeout(open, 600);
+})();
 setGate();refreshMe();
 `;
 
@@ -238,5 +248,30 @@ const extraCss = `
 .atlas .searchrow{display:flex;gap:12px;margin-top:30px;max-width:560px}
 .atlas .searchrow input{margin:0}
 .atlas .searchrow .btn{width:auto;padding:0 24px}
-@media (max-width:980px){.hero{grid-template-columns:1fr;padding-top:64px}.orbfig{max-width:420px;margin:0 auto}}
+.book-overlay{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(6,4,16,.86);backdrop-filter:blur(4px);padding:24px}
+.book-overlay.open{display:flex;animation:bookIn .4s ease both}
+@keyframes bookIn{from{opacity:0}to{opacity:1}}
+.book-stage{position:relative;width:min(760px,94vw);max-height:90vh;background:linear-gradient(160deg,var(--void-2),rgba(18,13,30,.92));border:1px solid var(--gold-faint);border-radius:18px;padding:54px 48px 40px;box-shadow:0 40px 120px rgba(0,0,0,.6);overflow:hidden}
+.book-stage::before{content:"";position:absolute;top:14px;left:14px;right:14px;bottom:14px;pointer-events:none;border:1px solid var(--gold-ghost);border-radius:12px}
+.book-close{position:absolute;top:16px;right:18px;z-index:2;background:none;border:none;color:var(--ink-dim);font-size:18px;cursor:pointer;font-family:var(--mono)}
+.book-close:hover{color:var(--gold)}
+.book-pages{position:relative;min-height:300px}
+.book-page{display:none;animation:pageIn .45s ease both}
+.book-page.active{display:block}
+@keyframes pageIn{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}
+.book-page .annot{display:block;margin-bottom:18px}
+.book-page h2{font-weight:800;font-size:clamp(32px,5vw,54px);line-height:1.05;letter-spacing:-.01em;margin-bottom:20px}
+.book-page h2 em{font-style:normal;color:var(--gold)}
+.book-page p{color:var(--ink-dim);font-size:18px;max-width:54ch;margin-bottom:14px}
+.book-page .book-foot{margin-top:24px;font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.book-page .btn{width:auto;padding:14px 28px;margin-top:10px}
+.book-nav{display:flex;align-items:center;justify-content:center;gap:22px;margin-top:30px}
+.book-arrow{width:42px;height:42px;border-radius:50%;border:1px solid var(--gold-faint);background:transparent;color:var(--gold);font-size:18px;cursor:pointer;transition:background .18s}
+.book-arrow:hover:not(:disabled){background:var(--gold-ghost)}
+.book-arrow:disabled{opacity:.3;cursor:default}
+.book-dots{display:flex;gap:10px}
+.book-dots i{width:8px;height:8px;border-radius:50%;background:var(--plum-dim);display:block;transition:background .2s}
+.book-dots i.on{background:var(--gold);box-shadow:0 0 8px var(--gold)}
+@media (max-width:600px){.book-stage{padding:46px 24px 34px}.book-page p{font-size:16px}}
 `;
+
