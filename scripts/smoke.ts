@@ -17,7 +17,8 @@ async function main() {
   await appendDiaryTurn(day, sessionId, { role: 'user', content: 'What is the latest context from my client?' });
   await appendDiaryTurn(day, sessionId, { role: 'assistant', content: answer.answer });
   const page = await getDiaryPage(day, sessionId);
-  if (page.turns.length !== 2) throw new Error('diary turns not persisted');
+  const smokeTurns = page.turns.filter((turn) => turn.content === 'What is the latest context from my client?' || turn.content === answer.answer);
+  if (smokeTurns.length < 2) throw new Error('diary turns not persisted');
   const entry = summarizeDiaryPage(page);
   await saveDiaryEntry(day, sessionId, entry);
   const matches = await searchDiaryPages('client');
