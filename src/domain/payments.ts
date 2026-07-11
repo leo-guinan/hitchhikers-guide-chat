@@ -1,6 +1,6 @@
 import type { CheckoutRequest } from './schema';
 
-export const stripePriceId = process.env.STRIPE_PRICE_ID ?? 'price_1Ts6ceGzXpChNrVvnNrQ44Ms';
+export const stripePriceId = (process.env.STRIPE_PRICE_ID ?? '').trim() || 'price_1Ts6ceGzXpChNrVvnNrQ44Ms';
 
 export type CheckoutResult = {
   configured: boolean;
