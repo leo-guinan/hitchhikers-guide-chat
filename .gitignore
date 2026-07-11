@@ -1,0 +1,11 @@
+node_modules/
+.mastra/
+dist/
+.env
+.env.*
+!.env.example
+data/*.jsonl
+data/requests/*.json
+data/diary/*.json
+data/future-analysis/*.json
+.DS_Store

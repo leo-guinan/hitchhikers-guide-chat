@@ -1,0 +1,25 @@
+{
+  "name": "hitchhikers-guide-chat",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hitchhiker's Guide to the Future: AI chat with human context requests.",
+  "scripts": {
+    "dev": "mastra dev",
+    "build": "mastra build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "smoke": "tsx scripts/smoke.ts"
+  },
+  "dependencies": {
+    "@mastra/core": "^0.24.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "mastra": "^0.18.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}
