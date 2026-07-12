@@ -128,7 +128,7 @@ echo "== deploy: bootstrap $TARGET_ENV service and backup current release =="
 ssh "$VPS_HOST" "APP_DIR='$APP_DIR' SERVICE='$SERVICE' PORT='$PORT' NODE_BIN='$NODE_BIN' BACKUP_PATH='$BACKUP_PATH' bash -s" <<'REMOTE'
 set -euo pipefail
 if [ -z "$NODE_BIN" ]; then
-  NODE_BIN="$(find /opt/hitchhikers-guide-chat -maxdepth 2 -path '*/bin/node' -type f | sort -V | tail -1)"
+  NODE_BIN="$(find /opt/hitchhikers-guide-chat -maxdepth 3 -path '*/bin/node' -type f | sort -V | tail -1)"
 fi
 test -x "$NODE_BIN"
 mkdir -p "$APP_DIR/.deploy-backups" "$APP_DIR/releases" "$APP_DIR/data"
