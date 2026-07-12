@@ -16,6 +16,18 @@ Operational contract for the Hitchhiker's Guide chat Mastra app.
 - environment file: `/opt/hitchhikers-guide-chat/.env`
 - Fathom site id: `LLFJJYXQ`
 
+## Staging mapping
+
+- VPS SSH alias: `arc-vps`
+- systemd service: `hitchhikers-guide-chat-staging.service`
+- local app port on VPS: `4143`
+- app root: `/opt/hitchhikers-guide-chat-staging`
+- current release symlink: `/opt/hitchhikers-guide-chat-staging/current`
+- release directories: `/opt/hitchhikers-guide-chat-staging/releases/<timestamp>-<commit>/output`
+- runtime data directory: `/opt/hitchhikers-guide-chat-staging/data`
+- environment file: `/opt/hitchhikers-guide-chat-staging/.env`
+- public domain: none by default; staging verifies over VPS loopback.
+
 The app must keep runtime state outside release output directories. The service unit should run from the current symlink and keep data outside the build:
 
 ```ini
@@ -53,7 +65,14 @@ LOCAL_CI_PASS hitchhikers-guide-chat
 npm run verify:prod
 ```
 
-Checks:
+For staging:
+
+```bash
+npm run verify:staging
+# equivalent: TARGET_ENV=staging bash scripts/verify_prod.sh
+```
+
+Checks, using either the public production domain or staging loopback:
 
 - systemd service is active;
 - loopback `/healthz` returns `hitchhikers-guide-chat`;
@@ -79,6 +98,13 @@ Default deploy refuses a dirty Git tree:
 npm run deploy:vps
 ```
 
+For staging:
+
+```bash
+npm run deploy:staging
+# equivalent: TARGET_ENV=staging bash scripts/deploy_vps.sh
+```
+
 For an explicit dirty-tree deploy, use the script directly:
 
 ```bash
@@ -101,12 +127,15 @@ The deploy script:
 
 Receipt JSON is intentionally ignored by Git; it is an operational artifact, not source.
 
+For staging, the deploy script bootstraps `/opt/hitchhikers-guide-chat-staging`, creates an empty `0600` `.env` if needed, seeds `data/.keep`, installs `hitchhikers-guide-chat-staging.service`, and verifies through `http://127.0.0.1:4143` over SSH. It does not require public DNS.
+
 ## Rollback
 
 Use a known release output path from a deploy receipt, or a backup tarball from the remote backup directory:
 
 ```bash
 bash scripts/rollback_vps.sh "$RELEASE_OUTPUT_OR_BACKUP_TGZ"
+TARGET_ENV=staging bash scripts/rollback_vps.sh "$RELEASE_OUTPUT_OR_BACKUP_TGZ"
 ```
 
 Rollback switches `/opt/hitchhikers-guide-chat/current` to the selected release output. If given a tarball, it first restores that tarball under `releases/rollback-<timestamp>/output`. It then installs production dependencies, restarts the service, runs production verification, and writes a local rollback receipt under `deploy-receipts/`.
@@ -124,7 +153,7 @@ This makes deploys stop waiting for the old 90-second timeout. It is still a for
 
 ## Hardening still missing
 
-- Staging service/domain on a separate port and data directory.
+- Public staging domain and TLS, if/when browser-accessible staging is worth the surface area.
 - End-to-end browser verification for auth and paid chat flows.
 - Stripe checkout and webhook test-mode smoke.
 - Graceful shutdown in the app/runtime if Mastra exposes a clean hook.

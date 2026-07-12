@@ -2,9 +2,9 @@
 set -euo pipefail
 
 if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 <release-output-dir-or-backup-tgz>" >&2
+  echo "Usage: TARGET_ENV=production|staging $0 <release-output-dir-or-backup-tgz>" >&2
   echo "Examples:" >&2
-  echo "  $0 \"\$RELEASE_OUTPUT\"" >&2
+  echo "  TARGET_ENV=staging $0 \"\$RELEASE_OUTPUT\"" >&2
   echo "  $0 \"\$BACKUP_TGZ\"" >&2
   exit 2
 fi
@@ -12,14 +12,27 @@ fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+TARGET_ENV="${TARGET_ENV:-production}"
 APP_NAME="${APP_NAME:-hitchhikers-guide-chat}"
 VPS_HOST="${VPS_HOST:-arc-vps}"
-SERVICE="${SERVICE:-hitchhikers-guide-chat.service}"
-APP_DIR="${APP_DIR:-/opt/hitchhikers-guide-chat}"
+case "$TARGET_ENV" in
+  production)
+    SERVICE="${SERVICE:-hitchhikers-guide-chat.service}"
+    APP_DIR="${APP_DIR:-/opt/hitchhikers-guide-chat}"
+    ;;
+  staging)
+    SERVICE="${SERVICE:-hitchhikers-guide-chat-staging.service}"
+    APP_DIR="${APP_DIR:-/opt/hitchhikers-guide-chat-staging}"
+    ;;
+  *)
+    echo "Unknown TARGET_ENV: $TARGET_ENV" >&2
+    exit 2
+    ;;
+esac
 TARGET="$1"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RECEIPT_DIR="$ROOT_DIR/deploy-receipts"
-RECEIPT_PATH="$RECEIPT_DIR/$STAMP.rollback.json"
+RECEIPT_PATH="$RECEIPT_DIR/$STAMP.$TARGET_ENV.rollback.json"
 mkdir -p "$RECEIPT_DIR"
 
 echo "== rollback: select $TARGET =="
@@ -49,28 +62,11 @@ cd "$RELEASE_OUTPUT"
 npm install --omit=dev --no-audit --no-fund
 ln -sfn "$RELEASE_OUTPUT" "$APP_DIR/current.next"
 mv -Tf "$APP_DIR/current.next" "$APP_DIR/current"
-python3 - <<'PY'
-import os
-from pathlib import Path
-app_dir = Path(os.environ['APP_DIR'])
-unit = Path('/etc/systemd/system') / os.environ['SERVICE']
-text = unit.read_text()
-lines = []
-for line in text.splitlines():
-    if line.startswith('WorkingDirectory='):
-        lines.append(f'WorkingDirectory={app_dir}/current')
-    else:
-        lines.append(line)
-new = '\n'.join(lines) + '\n'
-if new != text:
-    unit.write_text(new)
-PY
-systemctl daemon-reload
 systemctl restart "$SERVICE"
 sleep 2
 test "$(systemctl is-active "$SERVICE")" = active
 REMOTE
-./scripts/verify_prod.sh
+TARGET_ENV="$TARGET_ENV" ./scripts/verify_prod.sh
 REMOTE_PID="$(ssh "$VPS_HOST" "systemctl show -p MainPID --value '$SERVICE'")"
 CURRENT_TARGET="$(ssh "$VPS_HOST" "readlink -f '$APP_DIR/current'")"
 python3 - "$RECEIPT_PATH" <<PY
@@ -78,6 +74,7 @@ import json, sys
 receipt = {
   'status': 'success',
   'kind': 'rollback',
+  'target_env': '$TARGET_ENV',
   'app': '$APP_NAME',
   'service': '$SERVICE',
   'app_dir': '$APP_DIR',
@@ -91,4 +88,4 @@ with open(sys.argv[1], 'w') as f:
     f.write('\\n')
 PY
 
-echo "ROLLBACK_PASS $APP_NAME receipt=$RECEIPT_PATH current=$CURRENT_TARGET pid=$REMOTE_PID"
+echo "ROLLBACK_PASS $APP_NAME env=$TARGET_ENV receipt=$RECEIPT_PATH current=$CURRENT_TARGET pid=$REMOTE_PID"

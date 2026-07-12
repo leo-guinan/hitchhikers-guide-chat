@@ -12,7 +12,9 @@
     "smoke": "tsx scripts/smoke.ts",
     "ci:local": "bash scripts/local_ci.sh",
     "verify:prod": "bash scripts/verify_prod.sh",
+    "verify:staging": "TARGET_ENV=staging bash scripts/verify_prod.sh",
     "deploy:vps": "bash scripts/deploy_vps.sh",
+    "deploy:staging": "TARGET_ENV=staging bash scripts/deploy_vps.sh",
     "backload:medium": "tsx scripts/backload-medium.ts",
     "backload:community": "tsx scripts/backload-community.ts"
   },
