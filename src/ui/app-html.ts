@@ -62,27 +62,69 @@ const entryBody = `
 </section>`;
 
 const enterBody = `
-<section class="enter">
-  <div class="enter-card">
-    <span class="annot">Boarding <span class="dot">·</span> sign in, then the toll</span>
-    <h1>Open the diary.</h1>
-    <p class="lede">One plan, whole sky — $42/month. Sign in with your email, then subscribe. The diary unseals every morning after.</p>
-    <section class="panel" id="account" aria-labelledby="accTitle">
-      <h2 class="annot" id="accTitle">Account <span class="dot">·</span> sign-in by starlight</h2>
-      <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
-      <button class="btn" id="sendCode">Send sign-in code</button>
-      <div style="height:12px"></div>
-      <input type="text" id="code" inputmode="numeric" placeholder="6-digit code">
-      <button class="btn ghost" id="verifyBtn">Verify email</button>
-      <p class="note" id="accStatus">Signed out.</p>
-    </section>
-    <section class="panel" aria-labelledby="payTitle">
-      <h2 class="annot" id="payTitle">Paywall <span class="dot">·</span> the toll</h2>
-      <p style="color:var(--ink-dim);font-size:14.5px;margin-bottom:16px">Signed in? Subscribe to unseal the diary.</p>
-      <button class="btn solid" id="payBtn">Start at $42/month</button>
-      <p class="note" id="payStatus">Signed out.</p>
-    </section>
-    <a class="annot dim" href="/" style="display:block;margin-top:8px">← back to the cover</a>
+<section class="boarding" aria-labelledby="boardingTitle">
+  <div class="boarding-plate">
+    <div class="boarding-head">
+      <span class="annot">Boarding <span class="dot">·</span> two gates <span class="dot">·</span> one star</span>
+      <h1 id="boardingTitle">Open the diary.</h1>
+      <p>
+        One plan, whole sky — <strong>$42/month</strong>. Been aboard before?
+        Sign in on the left. New here? Pay the toll on the right and
+        <strong>your account is created in the same motion</strong>.
+        Both gates lead to the same place.
+      </p>
+    </div>
+
+    <div class="boarding-fork" aria-hidden="true">
+      <svg viewBox="0 0 760 120">
+        <path d="M20 100 C 130 96, 200 80, 280 62" fill="none" stroke="#d4a94e" stroke-opacity=".55" stroke-dasharray="1 8" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M20 24 C 130 28, 200 44, 280 62" fill="none" stroke="#d4a94e" stroke-opacity=".55" stroke-dasharray="1 8" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M280 62 C 430 62, 560 62, 672 62" fill="none" stroke="#d4a94e" stroke-opacity=".55" stroke-dasharray="1 8" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="20" cy="24" r="4.5" fill="#d4a94e"/>
+        <rect x="15.5" y="95.5" width="9" height="9" transform="rotate(45 20 100)" fill="#d4a94e"/>
+        <circle cx="280" cy="62" r="3" fill="#eccb7e"/>
+        <circle cx="700" cy="62" r="13" fill="#060410" stroke="#e2542c" stroke-width="1.5"/>
+        <circle cx="700" cy="62" r="20" fill="none" stroke="#e2542c" stroke-opacity=".3" stroke-dasharray="2 5"/>
+        <g font-family="'Space Mono',monospace" font-size="9" letter-spacing="2.5" fill="#d4a94e">
+          <text x="34" y="20">RETURNING</text>
+          <text x="34" y="112">NEW TRAVELER</text>
+          <text x="640" y="98" fill="#e2542c">THE DIARY</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="boarding-gates">
+      <section class="boarding-gate" id="gateReturn" aria-labelledby="returnTitle">
+        <h2 class="annot" id="returnTitle">Gate I <span class="dot">·</span> Returning traveler</h2>
+        <p class="sub">Already have an account? <strong>Sign in by starlight</strong> — we email you a code, no password to remember.</p>
+        <label class="annot dim" for="email" hidden>Email</label>
+        <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+        <button class="btn" id="sendCode">Send sign-in code</button>
+        <div class="codestep" id="codestep">
+          <label class="annot dim" for="code" hidden>Code</label>
+          <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code">
+          <button class="btn solid" id="verifyBtn">Verify &amp; open the diary</button>
+        </div>
+        <p class="note" id="accStatus">Signed out.</p>
+        <p class="fine">Your subscription is attached to your email. Sign in and today's page unseals.</p>
+      </section>
+
+      <section class="boarding-gate new" id="gateNew" aria-labelledby="newTitle">
+        <h2 class="annot" id="newTitle">Gate II <span class="dot">·</span> New traveler</h2>
+        <p class="sub">First time aboard? <strong>Pay the toll and your account is made</strong> — one step, no separate signup.</p>
+        <label class="annot dim" for="email2" hidden>Email for your new account</label>
+        <input type="email" id="email2" placeholder="you@example.com — becomes your account" autocomplete="email">
+        <button class="btn solid" id="payBtn">Start at $42/month →</button>
+        <p class="note">checkout by stripe <span class="dot">·</span> cancel anytime</p>
+        <p class="note" id="payStatus" style="margin-top:8px">No toll paid yet.</p>
+        <p class="fine">The Atlas and every diary entry stay yours. A sign-in code arrives after checkout.</p>
+      </section>
+    </div>
+
+    <div class="boarding-backrow">
+      <a href="/">← Back to the cover</a>
+      <span class="annot dim">mostly harmless <span class="dot">·</span> don't forget your towel</span>
+    </div>
   </div>
 </section>`;
 

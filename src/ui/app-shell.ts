@@ -157,14 +157,14 @@ function authHeaders(){return token?{authorization:'Bearer '+token}:{};}
 function fmtDate(iso){return iso?iso.replace(/-/g,'.'):'—';}
 async function api(path,opts={}){const res=await fetch(path,{headers:{'content-type':'application/json',...authHeaders(),...(opts.headers||{})},...opts});const text=await res.text();const data=text?JSON.parse(text):{};if(!res.ok)throw new Error(data.error||text||res.statusText);return data;}
 function setStatus(el,msg,ember){if(!el)return;el.textContent=msg;el.style.color=ember?'#e8a48d':'';}
-function setGate(){const signed=!!account;const paid=!!account?.paid;const acc=$('accStatus');if(acc)acc.textContent=signed?account.email+' // '+(paid?'paid':'unpaid'):'Signed out.';$('payStatus') && ($('payStatus').textContent=paid?'Paid account active. Diary open.':'Signed in. Subscribe to unseal the diary.');const veil=$('veil');if(veil)veil.style.display=(paid?'none':'flex');if($('composer')){$('composer').style.opacity=paid?1:.4;$('composer').style.pointerEvents=paid?'auto':'none';}const pay=$('payBtn');if(pay)pay.disabled=!signed||paid;if($('receipt')){$('receipt').innerHTML='session  <b>'+sessionId+'</b>\\npage     <b>'+fmtDate(today)+'</b>\\ngate     <b>'+(paid?'open':'locked')+'</b>\\nrequests logged for operator review';}}
+function setGate(){const signed=!!account;const paid=!!account?.paid;const acc=$('accStatus');if(acc)acc.textContent=signed?account.email+' // '+(paid?'paid':'unpaid'):'Signed out.';$('payStatus') && ($('payStatus').textContent=paid?'Paid account active. Diary open.':signed?'Signed in. Subscribe to unseal the diary.':'No toll paid yet.');const veil=$('veil');if(veil)veil.style.display=(paid?'none':'flex');if($('composer')){$('composer').style.opacity=paid?1:.4;$('composer').style.pointerEvents=paid?'auto':'none';}const pay=$('payBtn');if(pay)pay.disabled=paid;if($('receipt')){$('receipt').innerHTML='session  <b>'+sessionId+'</b>\\npage     <b>'+fmtDate(today)+'</b>\\ngate     <b>'+(paid?'open':'locked')+'</b>\\nrequests logged for operator review';}}
 async function refreshMe(){try{const r=await api('/auth/me',{method:'GET'});account=r.account;setGate();}catch{account=null;setGate();}}
 const sendCode=$('sendCode');
-if(sendCode)sendCode.onclick=async()=>{const em=$('email').value.trim();if(!em){setStatus($('accStatus'),'Enter an email first — the code needs somewhere to land.',true);return;}try{const r=await api('/auth/request-code',{method:'POST',body:JSON.stringify({email:em})});setStatus($('accStatus'),'Code sent. Dev code: '+(r.devCode||'check your inbox'));}catch(err){setStatus($('accStatus'),'Auth error: '+err.message,true);}};
+if(sendCode)sendCode.onclick=async()=>{const em=$('email').value.trim();if(!em){setStatus($('accStatus'),'Enter an email first — the code needs somewhere to land.',true);return;}try{const r=await api('/auth/request-code',{method:'POST',body:JSON.stringify({email:em})});$('gateReturn')&&$('gateReturn').classList.add('codesent');setStatus($('accStatus'),'Code sent. Dev code: '+(r.devCode||'check your inbox'));$('code')&&$('code').focus();}catch(err){setStatus($('accStatus'),'Auth error: '+err.message,true);}};
 const verifyBtn=$('verifyBtn');
 if(verifyBtn)verifyBtn.onclick=async()=>{const em=$('email').value.trim();const co=$('code').value.trim();if(co.trim().length<6){setStatus($('accStatus'),'That code is short a few digits.',true);return;}try{const r=await api('/auth/verify',{method:'POST',body:JSON.stringify({email:em,code:co})});token=r.token;localStorage.guideAuthToken=token;account=r.account;setGate();if(account&&account.paid)location.href='/app';}catch(err){setStatus($('accStatus'),'Verify error: '+err.message,true);}};
 const payBtn=$('payBtn');
-if(payBtn)payBtn.onclick=async()=>{if(!account){setStatus($('accStatus'),'Sign in first, then subscribe.',true);$('email')&&$('email').focus();return;}try{payBtn.textContent='Creating Checkout…';const r=await api('/checkout/session',{method:'POST',body:JSON.stringify({sessionId,successUrl:location.origin+'/app?checkout=success',cancelUrl:location.origin+'/enter?checkout=cancelled'})});if(r.checkout.url){location.href=r.checkout.url;return;}payBtn.textContent='Start at $42/month';setStatus($('accStatus'),r.checkout.error||'Stripe is not configured yet.',true);}catch(err){payBtn.textContent='Start at $42/month';setStatus($('accStatus'),'Stripe checkout not ready: '+err.message,true);}};
+if(payBtn)payBtn.onclick=async()=>{const signupEmail=$('email2')?.value.trim()||'';const checkoutEmail=account?.email||signupEmail;if(!checkoutEmail){setStatus($('payStatus'),'Enter an email first — it becomes your account.',true);$('email2')&&$('email2').focus();return;}try{payBtn.textContent='Creating Checkout…';setStatus($('payStatus'),'Charting course to Stripe checkout…');const successUrl=account?location.origin+'/app?checkout=success':location.origin+'/enter?checkout=success';const r=await api('/checkout/session',{method:'POST',body:JSON.stringify({sessionId,email:checkoutEmail,successUrl,cancelUrl:location.origin+'/enter?checkout=cancelled'})});if(r.checkout.url){location.href=r.checkout.url;return;}payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),r.checkout.error||'Stripe is not configured yet.',true);}catch(err){payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),'Stripe checkout not ready: '+err.message,true);}};
 const futureBtn=$('futureBtn');
 if(futureBtn)futureBtn.onclick=async()=>{try{const r=await api('/future-analysis',{method:'POST',body:JSON.stringify({sessionId,day:today,delay:delayFor($('window').value),question:$('futureNote').value||undefined})});setStatus($('futureStatus'),'Queued '+r.request.id+' ('+$('window').value+') for delayed human review.');}catch(err){setStatus($('futureStatus'),'Future queue error: '+err.message,true);}};
 function delayFor(v){return v==='24h'?'24h':v==='72h'?'72h':v==='1w'?'1w':'all';}
@@ -197,7 +197,7 @@ let lastUserMessage='';
   let seen=false; try{ seen=localStorage.guideBookSeen==='1'; }catch{}
   if(!seen && !location.search.includes('checkout=')) setTimeout(open, 600);
 })();
-setGate();refreshMe();
+setGate();refreshMe().finally(()=>{if(location.search.includes('checkout=success')){setStatus($('payStatus'),'Checkout complete. Use Gate I with the same email to open the diary.');setStatus($('accStatus'),'Payment recorded. Request a sign-in code with the same email.');}});
 `;
 
 export function pageShell(activeNav: string, bodyHtml: string, script: string): string {
@@ -278,14 +278,30 @@ const extraCss = `
 .book-dots i{width:8px;height:8px;border-radius:50%;background:var(--plum-dim);display:block;transition:background .2s}
 .book-dots i.on{background:var(--gold);box-shadow:0 0 8px var(--gold)}
 @media (max-width:600px){.book-stage{padding:46px 24px 34px}.book-page p{font-size:16px}}
-.enter{max-width:560px;margin:80px auto 60px;padding:0 24px}
-.enter-card{background:var(--void-2);border:1px solid var(--gold-faint);border-radius:16px;padding:36px 32px}
-.enter .lede{color:var(--ink-dim);font-size:16px;margin:14px 0 26px}
-.enter .panel{margin-bottom:22px}
-.enter .panel h2,.enter .panel .annot{font-size:12px}
-.enter .panel input,.enter .panel textarea,.enter .panel select{margin-bottom:12px;width:100%}
-.enter .panel .btn{width:100%}
-.enter .note{font-size:11px;margin-top:10px}
+.boarding{padding:48px 0 54px}
+.boarding-plate{border:1px solid var(--gold-faint);border-radius:18px;padding:clamp(28px,5vw,64px);background:linear-gradient(165deg,rgba(18,13,30,.75),rgba(11,8,20,.4));position:relative}
+.boarding-plate::before{content:"";position:absolute;inset:10px;pointer-events:none;border-radius:12px;border:1px dashed var(--gold-ghost)}
+.boarding-head{max-width:60ch}
+.boarding-head h1{font-weight:800;font-size:clamp(40px,5.4vw,64px);line-height:1.06;letter-spacing:.005em;word-spacing:.05em;margin:16px 0 18px}
+.boarding-head p{color:var(--ink-dim);font-weight:300;font-size:18px;max-width:52ch}
+.boarding-head p strong{color:var(--ink);font-weight:500}
+.boarding-fork{margin:34px 0 10px}
+.boarding-fork svg{width:100%;max-width:760px;height:auto;display:block}
+.boarding-gates{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:8px;position:relative}
+.boarding-gate{background:var(--void-2);border:1px solid var(--gold-ghost);border-radius:14px;padding:30px;position:relative;display:flex;flex-direction:column}
+.boarding-gate::before{content:"";position:absolute;inset:8px;pointer-events:none;border-radius:9px;background:linear-gradient(var(--gold-faint),var(--gold-faint)) top left/10px 1px,linear-gradient(var(--gold-faint),var(--gold-faint)) top left/1px 10px,linear-gradient(var(--gold-faint),var(--gold-faint)) bottom right/10px 1px,linear-gradient(var(--gold-faint),var(--gold-faint)) bottom right/1px 10px;background-repeat:no-repeat}
+.boarding-gate h2{margin-bottom:6px}
+.boarding-gate .sub{color:var(--ink-dim);font-size:15px;margin-bottom:22px;font-weight:300}
+.boarding-gate .sub strong{color:var(--ink);font-weight:500}
+.boarding-gate.new{border-color:var(--gold-faint);background:linear-gradient(170deg,#171026,var(--void-2))}
+.boarding-gate .note{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--ink-dim);margin-top:14px}
+.boarding-gate .fine{margin-top:auto;padding-top:18px;color:var(--ink-dim);font-size:13px;font-weight:300}
+.codestep{display:none;margin-top:12px}
+.boarding-gate.codesent .codestep{display:block}
+.boarding-backrow{margin-top:34px;display:flex;align-items:center;flex-wrap:wrap;gap:16px}
+.boarding-backrow a{color:var(--gold);font-family:var(--mono);font-size:11px;letter-spacing:.26em;text-transform:uppercase;text-decoration:underline;text-underline-offset:4px}
+.boarding-backrow .annot{margin-left:auto}
+@media (max-width:820px){.boarding-gates{grid-template-columns:1fr}}
 @media (max-width:860px){
   .hero{grid-template-columns:1fr;gap:28px;padding:56px 0 36px;align-items:start}
   .hero-annot{position:static;display:block;margin-bottom:16px}
@@ -304,9 +320,16 @@ const extraCss = `
   .price-line .price{font-size:34px}
   .orbfig svg{max-height:300px;object-fit:contain}
   .orbfig figcaption{font-size:8px;letter-spacing:.14em;line-height:1.6}
-  .enter{margin:32px auto 28px;padding:0}
-  .enter-card{padding:22px 18px;border-radius:13px}
-  .enter .lede{font-size:15px;line-height:1.55;margin:12px 0 20px}
+  .boarding{padding:28px 0 32px}
+  .boarding-plate{padding:22px 18px;border-radius:14px}
+  .boarding-plate::before{inset:7px}
+  .boarding-head h1{font-size:clamp(36px,14vw,52px)}
+  .boarding-head p{font-size:15.5px;line-height:1.55}
+  .boarding-fork{margin:24px -4px 6px;overflow:hidden}
+  .boarding-gates{gap:16px}
+  .boarding-gate{padding:20px 18px}
+  .boarding-backrow{margin-top:24px;display:block}
+  .boarding-backrow .annot{display:block;margin:12px 0 0}
   .diary{min-height:0}
   .diary-head{gap:8px;padding-bottom:12px}
   .diary-head .turns{margin-left:0;width:100%}

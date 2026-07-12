@@ -173,9 +173,10 @@ export const mastra = new Mastra({
         requiresAuth: false,
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
-          if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
           const body = CheckoutRequestSchema.parse(await c.req.json());
-          const checkout = await createCheckoutSession({ ...body, sessionId: account.id, email: account.email });
+          const email = account?.email ?? body.email;
+          if (!email) return c.json({ error: 'Enter an email first.' }, 400);
+          const checkout = await createCheckoutSession({ ...body, sessionId: account?.id ?? body.sessionId, email });
           return c.json({ checkout }, checkout.url ? 201 : 503);
         },
       }),
