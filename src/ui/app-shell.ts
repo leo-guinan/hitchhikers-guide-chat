@@ -211,7 +211,7 @@ const extraCss = `
 .hero-annot{position:absolute;top:34px;left:0}
 .orbfig{position:relative;min-height:340px}
 .orbfig svg{width:100%;height:auto;display:block}
-.orbfig figcaption{position:absolute;bottom:-4px;right:0;text-align:right}
+.orbfig figcaption{position:static;margin-top:14px;text-align:right;line-height:1.9;max-width:100%;white-space:normal}
 .diary{display:flex;flex-direction:column;min-height:620px}
 .diary-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px dashed var(--gold-ghost)}
 .diary-head .turns{margin-left:auto}
