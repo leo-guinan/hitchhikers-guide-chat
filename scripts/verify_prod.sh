@@ -31,6 +31,8 @@ check loopback_health ssh "$VPS_HOST" "curl -fsS http://127.0.0.1:$PORT/healthz 
 check port_listening ssh "$VPS_HOST" "ss -tlnp | grep -q ':$PORT'"
 check data_dir ssh "$VPS_HOST" "test -d '$APP_DIR/data' && test \"\$(find '$APP_DIR/data' -maxdepth 2 -type f | wc -l)\" -gt 0"
 check env_file ssh "$VPS_HOST" "test -f '$APP_DIR/.env' && test \"\$(stat -c '%a' '$APP_DIR/.env')\" = 600"
+check current_symlink ssh "$VPS_HOST" "test -L '$APP_DIR/current' && test -f '$APP_DIR/current/index.mjs'"
+check service_cwd_current ssh "$VPS_HOST" "pid=\$(systemctl show -p MainPID --value '$SERVICE'); test \"\$(readlink -f /proc/\$pid/cwd)\" = \"\$(readlink -f '$APP_DIR/current')\""
 
 curl -fsSL "https://$DOMAIN/" -o "$TMP_DIR/home.html"
 curl -fsSL "https://$DOMAIN/enter" -o "$TMP_DIR/enter.html"

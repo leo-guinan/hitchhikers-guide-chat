@@ -9,20 +9,23 @@ Operational contract for the Hitchhiker's Guide chat Mastra app.
 - systemd service: `hitchhikers-guide-chat.service`
 - local app port on VPS: `4142`
 - app root: `/opt/hitchhikers-guide-chat`
-- deployed build output: `/opt/hitchhikers-guide-chat/.mastra/output`
+- current release symlink: `/opt/hitchhikers-guide-chat/current`
+- release directories: `/opt/hitchhikers-guide-chat/releases/<timestamp>-<commit>/output`
+- legacy build output: `/opt/hitchhikers-guide-chat/.mastra/output` (kept only as migration fallback)
 - runtime data directory: `/opt/hitchhikers-guide-chat/data`
 - environment file: `/opt/hitchhikers-guide-chat/.env`
 - Fathom site id: `LLFJJYXQ`
 
-The app must keep runtime state outside `.mastra/output`. The service unit currently sets:
+The app must keep runtime state outside release output directories. The service unit should run from the current symlink and keep data outside the build:
 
 ```ini
+WorkingDirectory=/opt/hitchhikers-guide-chat/current
 Environment=PORT=4142
 Environment=GUIDE_DATA_DIR=/opt/hitchhikers-guide-chat/data
 EnvironmentFile=-/opt/hitchhikers-guide-chat/.env
 ```
 
-Do not run `rsync --delete` against `/opt/hitchhikers-guide-chat/` as a whole. Deploy only the build output, or explicitly exclude `.env`, `data/`, `.deploy-backups/`, and the Node runtime.
+Do not run `rsync --delete` against `/opt/hitchhikers-guide-chat/` as a whole. Deploy only into a fresh release directory, or explicitly exclude `.env`, `data/`, `.deploy-backups/`, `releases/`, `current`, and the Node runtime.
 
 ## Local gate
 
@@ -57,6 +60,8 @@ Checks:
 - port `4142` is listening;
 - `/opt/hitchhikers-guide-chat/data` exists and is non-empty;
 - `.env` exists and has `0600` permissions;
+- `/opt/hitchhikers-guide-chat/current` exists and points at an output directory;
+- the running service process has its cwd at the current symlink target;
 - public `/healthz` returns the expected service name;
 - public `/`, `/enter`, `/imports`, and `/app` include Fathom instrumentation and expected event names.
 
@@ -85,23 +90,26 @@ The deploy script:
 1. captures Git branch, commit, dirty status, and dirty diff hash;
 2. runs `scripts/local_ci.sh`;
 3. creates a remote backup under `/opt/hitchhikers-guide-chat/.deploy-backups/output-<timestamp>.tgz`;
-4. rsyncs local `.mastra/output/` to the VPS build output path, excluding copied `node_modules/`;
-5. runs `npm install --omit=dev --no-audit --no-fund` on the VPS inside the output directory;
-6. restarts `hitchhikers-guide-chat.service`;
-7. runs `scripts/verify_prod.sh`;
-8. writes a local deployment receipt under `deploy-receipts/<timestamp>.deploy.json`.
+4. creates a fresh release directory under `/opt/hitchhikers-guide-chat/releases/<timestamp>-<commit>/output`;
+5. rsyncs local `.mastra/output/` into that release output directory, excluding copied `node_modules/`;
+6. runs `npm install --omit=dev --no-audit --no-fund` on the VPS inside the release output directory;
+7. atomically switches `/opt/hitchhikers-guide-chat/current` to the new release output;
+8. updates systemd to use `WorkingDirectory=/opt/hitchhikers-guide-chat/current`;
+9. restarts `hitchhikers-guide-chat.service`;
+10. runs `scripts/verify_prod.sh`;
+11. writes a local deployment receipt under `deploy-receipts/<timestamp>.deploy.json`.
 
 Receipt JSON is intentionally ignored by Git; it is an operational artifact, not source.
 
 ## Rollback
 
-Use a known backup path from a deploy receipt or the remote backup directory:
+Use a known release output path from a deploy receipt, or a backup tarball from the remote backup directory:
 
 ```bash
-bash scripts/rollback_vps.sh "$BACKUP_TGZ"
+bash scripts/rollback_vps.sh "$RELEASE_OUTPUT_OR_BACKUP_TGZ"
 ```
 
-Rollback restores the backup tarball into `.mastra/output`, installs production dependencies, restarts the service, runs production verification, and writes a local rollback receipt under `deploy-receipts/`.
+Rollback switches `/opt/hitchhikers-guide-chat/current` to the selected release output. If given a tarball, it first restores that tarball under `releases/rollback-<timestamp>/output`. It then installs production dependencies, restarts the service, runs production verification, and writes a local rollback receipt under `deploy-receipts/`.
 
 ## Known wart
 
@@ -116,7 +124,6 @@ This makes deploys stop waiting for the old 90-second timeout. It is still a for
 
 ## Hardening still missing
 
-- Atomic release directories with `current` symlink instead of direct rsync into live output.
 - Staging service/domain on a separate port and data directory.
 - End-to-end browser verification for auth and paid chat flows.
 - Stripe checkout and webhook test-mode smoke.

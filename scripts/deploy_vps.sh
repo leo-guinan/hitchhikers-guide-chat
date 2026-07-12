@@ -26,6 +26,10 @@ mkdir -p "$RECEIPT_DIR"
 
 BRANCH="$(git branch --show-current 2>/dev/null || echo unknown)"
 COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+COMMIT_SHORT="${COMMIT:0:12}"
+RELEASE_ID="$STAMP-$COMMIT_SHORT"
+RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
+RELEASE_OUTPUT="$RELEASE_DIR/output"
 STATUS_SHORT="$(git status --short)"
 DIRTY_HASH="clean"
 if [ -n "$STATUS_SHORT" ]; then
@@ -49,10 +53,11 @@ LOCAL_CI_STATUS="not_run"
 BACKUP_PATH=""
 REMOTE_PID=""
 VERIFY_STATUS="not_run"
+CURRENT_TARGET=""
 
 write_receipt() {
   local status="$1"
-  export RECEIPT_STATUS="$status" LOCAL_CI_STATUS VERIFY_STATUS BACKUP_PATH REMOTE_PID
+  export RECEIPT_STATUS="$status" LOCAL_CI_STATUS VERIFY_STATUS BACKUP_PATH REMOTE_PID RELEASE_ID RELEASE_DIR RELEASE_OUTPUT CURRENT_TARGET
   python3 - "$RECEIPT_PATH" <<'PY'
 import json, os, sys
 path = sys.argv[1]
@@ -71,6 +76,12 @@ receipt = {
     'dirty': os.environ.get('STATUS_SHORT') != '',
     'dirty_hash': os.environ.get('DIRTY_HASH'),
     'status_short': os.environ.get('STATUS_SHORT', '').splitlines(),
+  },
+  'release': {
+    'id': os.environ.get('RELEASE_ID'),
+    'dir': os.environ.get('RELEASE_DIR'),
+    'output': os.environ.get('RELEASE_OUTPUT'),
+    'current_target': os.environ.get('CURRENT_TARGET'),
   },
   'checks': {
     'local_ci': os.environ.get('LOCAL_CI_STATUS'),
@@ -95,14 +106,41 @@ LOCAL_CI_STATUS="pass"
 
 BACKUP_PATH="$APP_DIR/.deploy-backups/output-$STAMP.tgz"
 echo "== deploy: remote backup $BACKUP_PATH =="
-ssh "$VPS_HOST" "set -euo pipefail; mkdir -p '$APP_DIR/.deploy-backups'; if [ -d '$APP_DIR/.mastra/output' ]; then tar -C '$APP_DIR/.mastra' -czf '$BACKUP_PATH' output; fi; test -f '$BACKUP_PATH'"
+ssh "$VPS_HOST" "set -euo pipefail; mkdir -p '$APP_DIR/.deploy-backups'; if [ -L '$APP_DIR/current' ]; then tar -C \"\$(dirname \"\$(readlink -f '$APP_DIR/current')\")\" -czf '$BACKUP_PATH' \"\$(basename \"\$(readlink -f '$APP_DIR/current')\")\"; elif [ -d '$APP_DIR/.mastra/output' ]; then tar -C '$APP_DIR/.mastra' -czf '$BACKUP_PATH' output; else echo 'No existing output to back up' >&2; exit 1; fi; test -f '$BACKUP_PATH'"
 
-echo "== deploy: rsync build output =="
-rsync -az --delete --exclude='node_modules/' "$ROOT_DIR/.mastra/output/" "$VPS_HOST:$APP_DIR/.mastra/output/"
+echo "== deploy: create release $RELEASE_OUTPUT =="
+ssh "$VPS_HOST" "set -euo pipefail; rm -rf '$RELEASE_DIR'; mkdir -p '$RELEASE_OUTPUT'"
+rsync -az --delete --exclude='node_modules/' "$ROOT_DIR/.mastra/output/" "$VPS_HOST:$RELEASE_OUTPUT/"
 
-echo "== deploy: install production deps and restart =="
-ssh "$VPS_HOST" "set -euo pipefail; cd '$APP_DIR/.mastra/output'; npm install --omit=dev --no-audit --no-fund; systemctl restart '$SERVICE'; sleep 2; test \"\$(systemctl is-active '$SERVICE')\" = active"
+echo "== deploy: install production deps in release =="
+ssh "$VPS_HOST" "set -euo pipefail; cd '$RELEASE_OUTPUT'; npm install --omit=dev --no-audit --no-fund"
+
+echo "== deploy: switch current symlink and update service =="
+ssh "$VPS_HOST" "set -euo pipefail
+ln -sfn '$RELEASE_OUTPUT' '$APP_DIR/current.next'
+mv -Tf '$APP_DIR/current.next' '$APP_DIR/current'
+python3 - <<'PY'
+from pathlib import Path
+app_dir = Path('$APP_DIR')
+unit = Path('/etc/systemd/system/$SERVICE')
+text = unit.read_text()
+lines = []
+for line in text.splitlines():
+    if line.startswith('WorkingDirectory='):
+        lines.append(f'WorkingDirectory={app_dir}/current')
+    else:
+        lines.append(line)
+new = '\n'.join(lines) + '\n'
+if new != text:
+    unit.write_text(new)
+PY
+systemctl daemon-reload
+systemctl restart '$SERVICE'
+sleep 2
+test \"\$(systemctl is-active '$SERVICE')\" = active
+"
 REMOTE_PID="$(ssh "$VPS_HOST" "systemctl show -p MainPID --value '$SERVICE'")"
+CURRENT_TARGET="$(ssh "$VPS_HOST" "readlink -f '$APP_DIR/current'")"
 
 echo "== deploy: production verification =="
 ./scripts/verify_prod.sh
@@ -110,4 +148,4 @@ VERIFY_STATUS="pass"
 
 write_receipt success >/dev/null
 
-echo "DEPLOY_PASS $APP_NAME domain=$DOMAIN receipt=$RECEIPT_PATH backup=$BACKUP_PATH pid=$REMOTE_PID"
+echo "DEPLOY_PASS $APP_NAME domain=$DOMAIN receipt=$RECEIPT_PATH release=$RELEASE_OUTPUT backup=$BACKUP_PATH pid=$REMOTE_PID"
