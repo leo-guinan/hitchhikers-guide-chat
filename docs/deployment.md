@@ -129,6 +129,27 @@ Receipt JSON is intentionally ignored by Git; it is an operational artifact, not
 
 For staging, the deploy script bootstraps `/opt/hitchhikers-guide-chat-staging`, creates an empty `0600` `.env` if needed, seeds `data/.keep`, installs `hitchhikers-guide-chat-staging.service`, and verifies through `http://127.0.0.1:4143` over SSH. It does not require public DNS.
 
+## New-user journey agent
+
+```bash
+npm run agent:new-user
+```
+
+This staging-only agent refuses to run unless `TARGET_ENV=staging`, port `4143`, and an app dir containing `staging` are in use. It walks a new account through:
+
+1. cover, boarding, and sealed app pages;
+2. invalid email validation;
+3. email-code sign-in using staging `devCode`;
+4. unpaid chat/paywall checks;
+5. explicit staging-only operator payment flip in `/opt/hitchhikers-guide-chat-staging/data/accounts`;
+6. paid chat;
+7. human context request;
+8. future-analysis request;
+9. diary compression and search;
+10. import source creation, import run, and artifact search.
+
+It writes reports under `dogfood-output/new-user-agent/`, which is ignored by Git. The agent is HTTP/API based: it records route HTML text and controls, but it is not a full browser/JavaScript/localStorage test. Use Playwright or a public staging domain when we need real visual/browser proof.
+
 ## Rollback
 
 Use a known release output path from a deploy receipt, or a backup tarball from the remote backup directory:

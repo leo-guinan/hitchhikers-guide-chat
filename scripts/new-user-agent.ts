@@ -175,7 +175,7 @@ async function post(route: string, body: unknown, bearer = ''): Promise<HttpResu
 }
 
 async function request(route: string, options: { method: string; body?: string; bearer?: string }): Promise<HttpResult> {
-  const args = ['-fsS', '-i', '-X', options.method, `http://127.0.0.1:${port}${route}`];
+  const args = ['-sS', '-X', options.method, `http://127.0.0.1:${port}${route}`, '-w', '\n__HTTP_STATUS__:%{http_code}\n'];
   if (options.bearer) args.push('-H', `Authorization: Bearer ${options.bearer}`);
   if (options.body !== undefined) args.push('-H', 'Content-Type: application/json', '--data-binary', options.body);
   const remote = ['curl', ...args.map(shellQuote)].join(' ');
@@ -221,17 +221,9 @@ async function assertStagingFiles() {
 
 function parseCurlResponse(raw: string): HttpResult {
   const normalized = raw.replace(/\r\n/g, '\n');
-  const parts = normalized.split('\n\n');
-  const body = parts.pop() ?? '';
-  const headerText = parts.reverse().find((part) => /^HTTP\//.test(part)) ?? '';
-  const lines = headerText.split('\n').filter(Boolean);
-  const status = Number(lines[0]?.match(/HTTP\/\S+\s+(\d+)/)?.[1] ?? 0);
-  const headers: Record<string, string> = {};
-  for (const line of lines.slice(1)) {
-    const idx = line.indexOf(':');
-    if (idx > 0) headers[line.slice(0, idx).toLowerCase()] = line.slice(idx + 1).trim();
-  }
-  return { status, headers, body };
+  const match = normalized.match(/\n__HTTP_STATUS__:(\d{3})\n$/);
+  if (!match) return { status: 0, headers: {}, body: normalized };
+  return { status: Number(match[1]), headers: {}, body: normalized.slice(0, match.index) };
 }
 
 function inspectHtml(html: string): PageView {
