@@ -12,4 +12,5 @@ data/accounts/*.json
 data/auth-codes/*.json
 data/sessions/*.json
 deploy-receipts/*.json
+dogfood-output/
 .DS_Store
