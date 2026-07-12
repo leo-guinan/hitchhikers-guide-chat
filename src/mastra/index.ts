@@ -1,6 +1,7 @@
 import { Mastra } from '@mastra/core';
 import { registerApiRoute } from '@mastra/core/server';
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { ZodError, type ZodTypeAny, type z } from 'zod';
 import {
   ChatRequestSchema,
   CheckoutRequestSchema,
@@ -84,7 +85,9 @@ export const mastra = new Mastra({
         method: 'POST',
         requiresAuth: false,
         handler: async (c) => {
-          const body = EmailAuthRequestSchema.parse(await c.req.json());
+          const parsed = await parseJsonBody(c, EmailAuthRequestSchema);
+          if (parsed instanceof Response) return parsed;
+          const body = parsed;
           const result = await requestEmailCode(body.email);
           return c.json({ ok: true, email: result.email, expiresAt: result.expiresAt, delivery: result.delivery, devCode: result.devCode });
         },
@@ -93,7 +96,9 @@ export const mastra = new Mastra({
         method: 'POST',
         requiresAuth: false,
         handler: async (c) => {
-          const body = EmailAuthVerifySchema.parse(await c.req.json());
+          const parsed = await parseJsonBody(c, EmailAuthVerifySchema);
+          if (parsed instanceof Response) return parsed;
+          const body = parsed;
           const { account, session } = await verifyEmailCode(body.email, body.code);
           const paidAccount = freeAccessEmails.has(account.email) ? await markAccountPaid(account.email) : account;
           return c.json({ ok: true, token: session.token, account: publicAccount(paidAccount) });
@@ -114,7 +119,9 @@ export const mastra = new Mastra({
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
           if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
-          const body = ChatRequestSchema.parse(await c.req.json());
+          const parsed = await parseJsonBody(c, ChatRequestSchema);
+          if (parsed instanceof Response) return parsed;
+          const body = parsed;
           const day = body.day ?? todayKey();
           const existingPage = await getDiaryPage(day, account.id);
           await appendDiaryTurn(day, account.id, { role: 'user', content: body.message });
@@ -141,7 +148,9 @@ export const mastra = new Mastra({
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
           if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
-          const query = DiarySearchSchema.parse({ query: c.req.query('query') }).query ?? '';
+          const parsed = parseValue(DiarySearchSchema, { query: c.req.query('query') });
+          if (parsed instanceof Response) return parsed;
+          const query = parsed.query ?? '';
           return c.json({ pages: await searchDiaryPages(query) });
         },
       }),
@@ -162,7 +171,8 @@ export const mastra = new Mastra({
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
           if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
-          DiaryCompressionRequestSchema.parse(await c.req.json());
+          const parsed = await parseJsonBody(c, DiaryCompressionRequestSchema);
+          if (parsed instanceof Response) return parsed;
           const page = await getDiaryPage(c.req.param('day'), account.id);
           const entry = summarizeDiaryPage(page);
           const updated = await saveDiaryEntry(c.req.param('day'), account.id, entry);
@@ -184,7 +194,9 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await paidAccountFromRequest(c.req.raw);
           if (account instanceof Response) return account;
-          const body = ImportSourceCreateSchema.parse(await c.req.json());
+          const parsed = await parseJsonBody(c, ImportSourceCreateSchema);
+          if (parsed instanceof Response) return parsed;
+          const body = parsed;
           return c.json({ source: await createImportSource(account.id, body) }, 201);
         },
       }),
@@ -194,7 +206,9 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await paidAccountFromRequest(c.req.raw);
           if (account instanceof Response) return account;
-          const body = ImportRunRequestSchema.parse(await c.req.json().catch(() => ({})));
+          const parsed = parseValue(ImportRunRequestSchema, await c.req.json().catch(() => ({})));
+          if (parsed instanceof Response) return parsed;
+          const body = parsed;
           try {
             const result = await runImportSource(account.id, c.req.param('sourceId'), body.limit);
             return c.json(result, 201);
@@ -209,7 +223,9 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await paidAccountFromRequest(c.req.raw);
           if (account instanceof Response) return account;
-          const search = ImportedItemSearchSchema.parse({ query: c.req.query('query'), sourceId: c.req.query('sourceId'), limit: Number(c.req.query('limit') ?? 50) });
+          const parsed = parseValue(ImportedItemSearchSchema, { query: c.req.query('query'), sourceId: c.req.query('sourceId'), limit: Number(c.req.query('limit') ?? 50) });
+          if (parsed instanceof Response) return parsed;
+          const search = parsed;
           return c.json({ items: await listImportedItems(account.id, search) });
         },
       }),
@@ -220,7 +236,9 @@ export const mastra = new Mastra({
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
           if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
-          const body = FutureAnalysisRequestSchema.parse(await c.req.json());
+          const parsed = await parseJsonBody(c, FutureAnalysisRequestSchema);
+          if (parsed instanceof Response) return parsed;
+          const body = parsed;
           return c.json({ request: await createFutureAnalysisRequest({ ...body, sessionId: account.id }) }, 201);
         },
       }),
@@ -229,7 +247,9 @@ export const mastra = new Mastra({
         requiresAuth: false,
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
-          const body = CheckoutRequestSchema.parse(await c.req.json());
+          const parsed = await parseJsonBody(c, CheckoutRequestSchema);
+          if (parsed instanceof Response) return parsed;
+          const body = parsed;
           const email = account?.email ?? body.email;
           if (!email) return c.json({ error: 'Enter an email first.' }, 400);
           const checkout = await createCheckoutSession({ ...body, sessionId: account?.id ?? body.sessionId, email });
@@ -254,7 +274,9 @@ export const mastra = new Mastra({
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
           if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
-          const body = ContextRequestSchema.parse(await c.req.json());
+          const parsed = await parseJsonBody(c, ContextRequestSchema);
+          if (parsed instanceof Response) return parsed;
+          const body = parsed;
           return c.json({ request: await createContextRequest({ ...body, sessionId: account.id }) }, 201);
         },
       }),
@@ -291,6 +313,29 @@ async function paidAccountFromRequest(request: Request): Promise<Account | Respo
 
 function jsonError(error: string, status: number): Response {
   return new Response(JSON.stringify({ error }), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
+}
+
+async function parseJsonBody<T extends ZodTypeAny>(c: { req: { json: () => Promise<unknown> } }, schema: T): Promise<z.infer<T> | Response> {
+  try {
+    return schema.parse(await c.req.json()) as z.infer<T>;
+  } catch (error) {
+    return validationError(error);
+  }
+}
+
+function parseValue<T extends ZodTypeAny>(schema: T, value: unknown): z.infer<T> | Response {
+  try {
+    return schema.parse(value) as z.infer<T>;
+  } catch (error) {
+    return validationError(error);
+  }
+}
+
+function validationError(error: unknown): Response {
+  if (error instanceof ZodError) {
+    return jsonError(error.issues.map((issue) => `${issue.path.join('.') || 'body'}: ${issue.message}`).join('; '), 400);
+  }
+  return jsonError(error instanceof Error ? error.message : 'Invalid request body', 400);
 }
 
 type StripeEvent = {

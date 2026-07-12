@@ -15,6 +15,7 @@
     "verify:staging": "TARGET_ENV=staging bash scripts/verify_prod.sh",
     "deploy:vps": "bash scripts/deploy_vps.sh",
     "deploy:staging": "TARGET_ENV=staging bash scripts/deploy_vps.sh",
+    "agent:new-user": "TARGET_ENV=staging tsx scripts/new-user-agent.ts",
     "backload:medium": "tsx scripts/backload-medium.ts",
     "backload:community": "tsx scripts/backload-community.ts"
   },
