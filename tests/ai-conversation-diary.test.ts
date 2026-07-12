@@ -39,6 +39,10 @@ describe('ai conversation diary adapters', () => {
     expect(text).toContain('Heat:');
     expect(text).not.toContain('private product idea');
     expect(text).not.toContain('Use a receipt');
+    const shapeSidecar = await readFile(path.join(dir, 'out', 'conversation_shapes.json'), 'utf8');
+    expect(shapeSidecar).toContain('turnBuckets');
+    expect(shapeSidecar).not.toContain('private product idea');
+    expect(shapeSidecar).not.toContain('Use a receipt');
     const installed = JSON.parse(await readFile(path.join(dir, 'diary', '2026-01-02.json'), 'utf8')) as { turns: unknown[] };
     expect(installed.turns).toHaveLength(2);
   });

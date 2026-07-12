@@ -76,8 +76,10 @@ export async function convertConversationArchiveToDiary(options: {
 
   if (options.outputDir) {
     await mkdir(options.outputDir, { recursive: true });
-    await writeFile(path.join(options.outputDir, 'normalized_conversations.json'), JSON.stringify(conversations, null, 2));
-    files.push(path.join(options.outputDir, 'normalized_conversations.json'));
+    const normalizedFile = options.mode === 'full' ? 'normalized_conversations.json' : 'conversation_shapes.json';
+    const normalizedPayload = options.mode === 'full' ? conversations : conversations.map(conversationShape);
+    await writeFile(path.join(options.outputDir, normalizedFile), JSON.stringify(normalizedPayload, null, 2));
+    files.push(path.join(options.outputDir, normalizedFile));
     const diaryDir = path.join(options.outputDir, 'diary');
     await mkdir(diaryDir, { recursive: true });
     for (const page of pages) {
@@ -107,6 +109,30 @@ export async function convertConversationArchiveToDiary(options: {
     report.files.push(path.join(options.outputDir, 'import_report.json'));
   }
   return { provider: options.provider, mode: options.mode, conversations, pages, report };
+}
+
+function conversationShape(conversation: NormalizedConversation): Record<string, unknown> {
+  const analysis = analyzeConversationDay(conversation.day, [conversation]);
+  return {
+    provider: conversation.provider,
+    idHash: stableHash(conversation.id).slice(0, 12),
+    day: conversation.day,
+    turnCount: analysis.turnCount,
+    userTurnCount: analysis.userTurnCount,
+    assistantTurnCount: analysis.assistantTurnCount,
+    totalChars: analysis.totalChars,
+    userChars: analysis.userChars,
+    assistantChars: analysis.assistantChars,
+    questionCount: analysis.questionCount,
+    codeBlockCount: analysis.codeBlockCount,
+    averageUserTurnChars: analysis.averageUserTurnChars,
+    averageAssistantTurnChars: analysis.averageAssistantTurnChars,
+    heat: analysis.heat,
+    heatScore: analysis.heatScore,
+    balance: analysis.balance,
+    roleSequence: conversation.turns.map((turn) => turn.role === 'user' ? 'U' : 'A').join(''),
+    turnBuckets: conversation.turns.map((turn) => `${turn.role[0]}:${charBucket(turn.text.length)}${turn.text.includes('?') ? '?' : ''}${turn.text.includes('```') ? '{}' : ''}`),
+  };
 }
 
 export function normalizeConversationArchive(provider: ConversationProvider, raw: unknown): NormalizedConversation[] {

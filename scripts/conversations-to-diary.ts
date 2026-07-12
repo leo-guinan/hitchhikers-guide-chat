@@ -29,7 +29,8 @@ async function main() {
     dateRange: result.report.dateRange,
     installedPageCount: result.report.installedPageCount,
     skippedTurnCount: result.report.skippedTurnCount,
-    files: result.report.files,
+    fileCount: result.report.files.length,
+    receiptFiles: result.report.files.filter((file) => file.endsWith('import_report.json') || file.endsWith('conversation_shapes.json') || file.endsWith('normalized_conversations.json')),
   }, null, 2));
 }
 
