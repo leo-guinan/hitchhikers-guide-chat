@@ -71,5 +71,24 @@ footer{border-top:1px solid var(--gold-ghost);padding:34px 0 44px;margin-top:30p
 footer .annot{font-size:10px}
 footer .right{margin-left:auto}
 @media (max-width:980px){.grid{grid-template-columns:1fr}}
+@media (max-width:720px){
+  body{font-size:15px;line-height:1.5}
+  .wrap{padding:0 16px;max-width:none}
+  .field svg{opacity:.55}
+  .annot{font-size:9px;letter-spacing:.18em;line-height:1.7}
+  .annot .dot{padding:0 .2em}
+  header{padding:18px 0 14px;gap:10px;align-items:flex-start}
+  .sigil{width:30px;height:30px}
+  header .name{font-size:10px;letter-spacing:.18em;line-height:1.45;max-width:calc(100% - 44px)}
+  header nav{width:100%;margin-left:0;gap:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  header nav a{font-size:9px;letter-spacing:.16em;text-align:center;border:1px solid var(--gold-ghost);border-radius:8px;padding:9px 8px;background:rgba(18,13,30,.42)}
+  header nav a.cta{padding:9px 8px}
+  .panel{padding:18px;border-radius:12px}
+  .panel::before{inset:6px}
+  input[type=email],input[type=text],textarea,select{font-size:16px;padding:12px;margin-bottom:10px}
+  .btn{font-size:10px;letter-spacing:.16em;padding:12px 13px;min-height:44px}
+  .grid{gap:18px;padding-bottom:22px}
+  footer{display:none}
+}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
 `;

@@ -281,5 +281,58 @@ const extraCss = `
 .enter .panel input,.enter .panel textarea,.enter .panel select{margin-bottom:12px;width:100%}
 .enter .panel .btn{width:100%}
 .enter .note{font-size:11px;margin-top:10px}
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr;gap:28px;padding:56px 0 36px;align-items:start}
+  .hero-annot{position:static;display:block;margin-bottom:16px}
+  .hero h1{font-size:clamp(40px,13vw,62px);line-height:1.03;letter-spacing:-.025em}
+  .hero .lede{font-size:16px;margin-top:20px;max-width:44ch}
+  .price-line{margin-top:26px;gap:10px}
+  .price-line .price{font-size:38px}
+  .orbfig{min-height:0;max-width:440px;margin:4px auto 0;width:100%}
+  .orbfig figcaption{text-align:center;margin-top:8px}
+}
+@media (max-width:720px){
+  .hero{padding:34px 0 28px;gap:20px}
+  .hero h1{font-size:clamp(36px,15vw,54px)}
+  .hero .lede{font-size:15.5px;line-height:1.55;margin-top:18px}
+  .price-line{align-items:flex-start;flex-direction:column;margin-top:22px}
+  .price-line .price{font-size:34px}
+  .orbfig svg{max-height:300px;object-fit:contain}
+  .orbfig figcaption{font-size:8px;letter-spacing:.14em;line-height:1.6}
+  .enter{margin:32px auto 28px;padding:0}
+  .enter-card{padding:22px 18px;border-radius:13px}
+  .enter .lede{font-size:15px;line-height:1.55;margin:12px 0 20px}
+  .diary{min-height:0}
+  .diary-head{gap:8px;padding-bottom:12px}
+  .diary-head .turns{margin-left:0;width:100%}
+  .chatlog{max-height:none;min-height:260px;padding:18px 0;gap:12px}
+  .msg{max-width:100%;font-size:14.5px;padding:12px 14px}
+  .msg .who{font-size:9px;letter-spacing:.18em}
+  .composer{flex-direction:column;gap:10px;padding-top:14px}
+  .composer textarea{min-height:96px;width:100%}
+  .composer .btn{width:100%;padding:12px 13px}
+  .diary-tools{gap:10px;margin-top:12px}
+  .diary-tools .btn{min-width:0;width:100%;flex-basis:100%}
+  .veil{padding:20px;gap:10px}
+  .veil .btn{width:100%;padding:12px 13px}
+  .rail{display:grid;gap:18px}
+  .atlas{padding:34px 0 24px}
+  .atlas-head{display:block;margin-bottom:12px}
+  .atlas-head h2{font-size:32px;line-height:1.05;margin-bottom:10px}
+  .atlas-head .annot{margin-left:0}
+  .starline{margin:4px -8px 0;overflow:hidden}
+  .entries{grid-template-columns:1fr;gap:14px;margin-top:20px}
+  .entry{padding:18px}
+  .atlas .searchrow{flex-direction:column;gap:10px;margin-top:22px;max-width:none}
+  .atlas .searchrow .btn{width:100%;padding:12px 13px}
+  .book-overlay{padding:12px;align-items:flex-start;overflow:auto}
+  .book-stage{width:100%;max-height:none;margin-top:10px;padding:42px 18px 24px;border-radius:14px}
+  .book-stage::before{inset:8px}
+  .book-pages{min-height:0}
+  .book-page h2{font-size:clamp(31px,11vw,44px)}
+  .book-page p{font-size:15.5px;line-height:1.55}
+  .book-page .btn{width:100%;padding:13px 14px}
+  .book-nav{margin-top:22px;gap:14px}
+}
 `;
 
