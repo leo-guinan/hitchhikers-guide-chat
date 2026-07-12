@@ -10,6 +10,9 @@ import {
   EmailAuthRequestSchema,
   EmailAuthVerifySchema,
   FutureAnalysisRequestSchema,
+  ImportedItemSearchSchema,
+  ImportRunRequestSchema,
+  ImportSourceCreateSchema,
   type Account,
 } from '../domain/schema';
 import { answerChat, pricingPlan, summarizeDiaryPage } from '../domain/engine';
@@ -18,18 +21,22 @@ import {
   appendDiaryTurn,
   createContextRequest,
   createFutureAnalysisRequest,
+  createImportSource,
   getDiaryPage,
   getSessionAccount,
   initStore,
+  listImportedItems,
+  listImportSources,
   listContextRequests,
   markAccountPaid,
   requestEmailCode,
+  runImportSource,
   saveDiaryEntry,
   searchDiaryPages,
   todayKey,
   verifyEmailCode,
 } from '../domain/store';
-import { appHtml, searchHtml, enterHtml, appPageHtml } from '../ui/app-html';
+import { appHtml, searchHtml, enterHtml, appPageHtml, importsHtml } from '../ui/app-html';
 
 await initStore();
 
@@ -58,6 +65,11 @@ export const mastra = new Mastra({
         requiresAuth: false,
         handler: async () => new Response(searchHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
       }),
+      registerApiRoute('/imports', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async () => new Response(importsHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+      }),
       registerApiRoute('/healthz', {
         method: 'GET',
         requiresAuth: false,
@@ -74,7 +86,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const body = EmailAuthRequestSchema.parse(await c.req.json());
           const result = await requestEmailCode(body.email);
-          return c.json({ ok: true, email: result.email, expiresAt: result.expiresAt, devCode: result.devCode });
+          return c.json({ ok: true, email: result.email, expiresAt: result.expiresAt, delivery: result.delivery, devCode: result.devCode });
         },
       }),
       registerApiRoute('/auth/verify', {
@@ -157,6 +169,50 @@ export const mastra = new Mastra({
           return c.json({ entry, page: updated });
         },
       }),
+      registerApiRoute('/imports/sources', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async (c) => {
+          const account = await paidAccountFromRequest(c.req.raw);
+          if (account instanceof Response) return account;
+          return c.json({ sources: await listImportSources(account.id) });
+        },
+      }),
+      registerApiRoute('/imports/sources', {
+        method: 'POST',
+        requiresAuth: false,
+        handler: async (c) => {
+          const account = await paidAccountFromRequest(c.req.raw);
+          if (account instanceof Response) return account;
+          const body = ImportSourceCreateSchema.parse(await c.req.json());
+          return c.json({ source: await createImportSource(account.id, body) }, 201);
+        },
+      }),
+      registerApiRoute('/imports/sources/:sourceId/run', {
+        method: 'POST',
+        requiresAuth: false,
+        handler: async (c) => {
+          const account = await paidAccountFromRequest(c.req.raw);
+          if (account instanceof Response) return account;
+          const body = ImportRunRequestSchema.parse(await c.req.json().catch(() => ({})));
+          try {
+            const result = await runImportSource(account.id, c.req.param('sourceId'), body.limit);
+            return c.json(result, 201);
+          } catch (error) {
+            return c.json({ error: (error as Error).message }, 404);
+          }
+        },
+      }),
+      registerApiRoute('/imports/items', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async (c) => {
+          const account = await paidAccountFromRequest(c.req.raw);
+          if (account instanceof Response) return account;
+          const search = ImportedItemSearchSchema.parse({ query: c.req.query('query'), sourceId: c.req.query('sourceId'), limit: Number(c.req.query('limit') ?? 50) });
+          return c.json({ items: await listImportedItems(account.id, search) });
+        },
+      }),
       registerApiRoute('/future-analysis', {
         method: 'POST',
         requiresAuth: false,
@@ -224,6 +280,17 @@ async function accountFromRequest(request: Request): Promise<Account | null> {
   const authorization = request.headers.get('authorization') ?? '';
   const token = authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length).trim() : undefined;
   return getSessionAccount(token);
+}
+
+async function paidAccountFromRequest(request: Request): Promise<Account | Response> {
+  const account = await accountFromRequest(request);
+  if (!account) return jsonError('Sign in with email first.', 401);
+  if (!account.paid) return jsonError('A paid $42/month account is required before imports unlock.', 402);
+  return account;
+}
+
+function jsonError(error: string, status: number): Response {
+  return new Response(JSON.stringify({ error }), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
 }
 
 type StripeEvent = {

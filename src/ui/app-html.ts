@@ -146,6 +146,7 @@ const appBody = `
       <div class="diary-tools">
         <button class="btn ghost" id="compressBtn">Compress today into a diary entry</button>
         <a class="btn ghost" href="/search" style="text-decoration:none">Open the Atlas →</a>
+        <a class="btn ghost" href="/imports" style="text-decoration:none">Import old work →</a>
       </div>
       <div class="veil" id="veil">
         <span class="annot ember">Sealed page <span class="dot">·</span> account gated</span>
@@ -183,6 +184,7 @@ const appBody = `
     if(!account||!account.paid){ location.href='/enter'; return; }
     addMsg('you','You',text); box.value=''; lastUserMessage=text;
     try{
+      trackGuideEvent('Guide Chat Sent');
       const r=await api('/chat',{method:'POST',body:JSON.stringify({sessionId,message:text,day:today})});
       addMsg('guide','Leo · the guide',r.answer);
       $('diaryDate').textContent=fmtDate(r.diary.day);
@@ -192,7 +194,7 @@ const appBody = `
   });
   $('compressBtn').addEventListener('click',async()=>{
     if(!account||!account.paid){ location.href='/enter'; return; }
-    try{ const r=await api('/diary/'+today+'/compress',{method:'POST',body:JSON.stringify({sessionId})}); $('compressBtn').textContent='Compressed '+r.entry.turnCount+' turns into entry '+r.entry.id; }catch(err){ $('compressBtn').textContent='Compression error: '+err.message; }
+    try{ trackGuideEvent('Guide Diary Compressed'); const r=await api('/diary/'+today+'/compress',{method:'POST',body:JSON.stringify({sessionId})}); $('compressBtn').textContent='Compressed '+r.entry.turnCount+' turns into entry '+r.entry.id; }catch(err){ $('compressBtn').textContent='Compression error: '+err.message; }
   });
   function addMsg(cls,who,text){
     const d=document.createElement('div'); d.className='msg '+cls;
@@ -259,6 +261,156 @@ const atlasBody = `
 })();
 </script>`;
 
+const importsBody = `
+<section class="imports" id="imports" aria-labelledby="importsTitle">
+  <div class="imports-head">
+    <div>
+      <span class="annot">Guide accounts <span class="dot">·</span> imports <span class="dot">·</span> provenance first</span>
+      <h1 id="importsTitle">Bring the old work aboard.</h1>
+      <p>Medium, Substack, Ghost, YouTube, RSS, generic URLs, and X archive JSON all become account-owned artifacts. The import is not the memory; the receipt is.</p>
+    </div>
+    <a class="btn ghost" href="/app" style="width:auto;text-decoration:none">← Today's page</a>
+  </div>
+
+  <div class="imports-grid">
+    <section class="panel" aria-labelledby="addSourceTitle">
+      <h2 class="annot" id="addSourceTitle">Add import source</h2>
+      <div class="imports-form-row">
+        <select id="importKind" aria-label="Import type">
+          <option value="rss">RSS / Atom feed</option>
+          <option value="substack">Substack</option>
+          <option value="ghost">Ghost blog</option>
+          <option value="generic_url">Single URL</option>
+          <option value="youtube_feed">YouTube feed</option>
+          <option value="x_archive_json">X archive JSON seed</option>
+        </select>
+        <input type="text" id="importLabel" placeholder="Label — e.g. White Mirror, Medium, @hitchhiker">
+      </div>
+      <input type="text" id="importUrl" placeholder="URL — feed, publication, post, blog, or YouTube feed">
+      <input type="text" id="importHandle" placeholder="Optional handle / channel id — e.g. UC..., username, substack slug">
+      <textarea id="importSeed" placeholder='Optional JSON seed for X/archive imports: [{"externalId":"1","url":"https://x.com/...","title":"...","text":"...","createdAt":"2026-01-01"}]'></textarea>
+      <p class="seed-help">For X/Twitter, start with archive/export JSON. Live API can come later; paid reads are a meter, not a memory.</p>
+      <button class="btn solid" id="addImportSource">Add source</button>
+      <p class="import-status" id="importCreateStatus">No source added yet.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="sourcesTitle">
+      <h2 class="annot" id="sourcesTitle">Sources</h2>
+      <p class="note">Run imports manually. A source that cannot fetch reports failure; it should not pretend the void produced content.</p>
+      <div class="imports-list" id="importSources"></div>
+    </section>
+  </div>
+
+  <section class="panel" style="margin-top:24px" aria-labelledby="itemsTitle">
+    <div class="atlas-head" style="margin-bottom:0">
+      <h2 id="itemsTitle">Imported artifacts</h2>
+      <span class="annot dim" id="importsMeta">— items aboard</span>
+    </div>
+    <form class="imports-search" id="importSearchForm">
+      <input type="text" id="importSearch" placeholder="Search imported posts, essays, transcripts, tweets">
+      <button type="submit" class="btn">Search</button>
+    </form>
+    <div class="imports-list" id="importItems"></div>
+  </section>
+</section>
+
+<script>
+(async function(){
+  await refreshMe();
+  if(!account||!account.paid){ location.href='/enter'; return; }
+  const sourcesEl=$('importSources');
+  const itemsEl=$('importItems');
+  const metaEl=$('importsMeta');
+  const createStatus=$('importCreateStatus');
+  let sources=[];
+
+  function esc(v){return String(v||'').replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function short(v,n){v=String(v||'');return v.length>n?v.slice(0,n-1)+'…':v;}
+  function sourceDescriptor(s){return s.url||s.handle||'manual seed';}
+  function readSeed(){
+    const raw=$('importSeed').value.trim();
+    if(!raw) return undefined;
+    const parsed=JSON.parse(raw);
+    if(!Array.isArray(parsed)) throw new Error('Seed JSON must be an array of items.');
+    return parsed.map(function(item){return {externalId:item.externalId,url:item.url,title:item.title,text:item.text,createdAt:item.createdAt};});
+  }
+  function sourcePayload(){
+    const payload={kind:$('importKind').value,label:$('importLabel').value.trim()};
+    const url=$('importUrl').value.trim();
+    const handle=$('importHandle').value.trim();
+    const items=readSeed();
+    if(url) payload.url=url;
+    if(handle) payload.handle=handle;
+    if(items&&items.length) payload.items=items;
+    return payload;
+  }
+
+  async function loadSources(){
+    const r=await api('/imports/sources',{method:'GET'});
+    sources=r.sources||[];
+    renderSources();
+  }
+  async function loadItems(q){
+    const r=await api('/imports/items?limit=50'+(q?'&query='+encodeURIComponent(q):''),{method:'GET'});
+    renderItems(r.items||[]);
+  }
+  function renderSources(){
+    sourcesEl.innerHTML='';
+    if(!sources.length){sourcesEl.innerHTML='<p class="annot dim">No sources yet. Add the first one on the left.</p>';return;}
+    sources.forEach(function(s){
+      const node=document.createElement('article');
+      node.className='import-source';
+      const last=s.lastRun?('last run: '+s.lastRun.imported+' imported · '+s.lastRun.skipped+' skipped · '+s.lastRun.failed+' failed'):'not run yet';
+      node.innerHTML='<span class="annot">'+esc(s.kind)+'</span><h3>'+esc(s.label)+'</h3><p><code>'+esc(sourceDescriptor(s))+'</code></p><p>'+esc(last)+'</p><div class="source-actions"><button class="btn run-source" data-id="'+esc(s.id)+'">Run import</button><button class="btn ghost filter-source" data-id="'+esc(s.id)+'">Show items</button></div><p class="import-status" id="status-'+esc(s.id)+'"></p>';
+      sourcesEl.appendChild(node);
+    });
+    sourcesEl.querySelectorAll('.run-source').forEach(function(btn){btn.addEventListener('click',async function(){await runSource(btn.dataset.id);});});
+    sourcesEl.querySelectorAll('.filter-source').forEach(function(btn){btn.addEventListener('click',async function(){await loadItemsForSource(btn.dataset.id);});});
+  }
+  async function runSource(id){
+    const status=$('status-'+id);
+    setStatus(status,'Running import…');
+    try{
+      const r=await api('/imports/sources/'+id+'/run',{method:'POST',body:JSON.stringify({limit:50})});
+      setStatus(status,'Imported '+r.summary.imported+' · skipped '+r.summary.skipped+' · failed '+r.summary.failed,!!r.summary.failed);
+      await loadSources(); await loadItems($('importSearch').value.trim());
+    }catch(err){setStatus(status,'Import error: '+err.message,true);}
+  }
+  async function loadItemsForSource(id){
+    const r=await api('/imports/items?limit=50&sourceId='+encodeURIComponent(id),{method:'GET'});
+    renderItems(r.items||[]);
+  }
+  function renderItems(items){
+    itemsEl.innerHTML='';
+    if(metaEl)metaEl.innerHTML=items.length+' items aboard';
+    if(!items.length){itemsEl.innerHTML='<p class="annot dim">No imported artifacts match yet.</p>';return;}
+    items.forEach(function(item){
+      const node=document.createElement('article');
+      node.className='import-item';
+      const href=item.url?'<a class="annot dim" href="'+esc(item.url)+'" target="_blank" rel="noreferrer">open source ↗</a>':'';
+      node.innerHTML='<div class="meta"><span class="annot">'+esc(item.sourceKind)+'</span><span class="annot dim">'+esc(item.day)+'</span><span class="annot dim">'+esc(item.wordCount)+' words</span>'+href+'</div><h3>'+esc(item.title)+'</h3><p><code>'+esc(item.sourceLabel)+'</code></p><p class="text">'+esc(short(item.text,900))+'</p>';
+      itemsEl.appendChild(node);
+    });
+  }
+
+  $('addImportSource').addEventListener('click',async function(){
+    try{
+      const payload=sourcePayload();
+      if(!payload.label) throw new Error('Label is required.');
+      if(!payload.url&&!payload.handle&&!(payload.items&&payload.items.length)) throw new Error('Add a URL, handle, or JSON seed.');
+      setStatus(createStatus,'Adding source…');
+      const r=await api('/imports/sources',{method:'POST',body:JSON.stringify(payload)});
+      setStatus(createStatus,'Added '+r.source.label+'. Run it when ready.');
+      $('importLabel').value=''; $('importUrl').value=''; $('importHandle').value=''; $('importSeed').value='';
+      await loadSources();
+    }catch(err){setStatus(createStatus,'Source error: '+err.message,true);}
+  });
+  $('importSearchForm').addEventListener('submit',async function(e){e.preventDefault();await loadItems($('importSearch').value.trim());});
+  await loadSources();
+  await loadItems('');
+})();
+</script>`;
+
 function futurePanelToday() {
   return `<section class="panel" aria-labelledby="futTitle"><h2 class="annot" id="futTitle">Send chat log to the future</h2><select id="window"><option value="24h">Last 24 hours</option><option value="72h">Last 72 hours</option><option value="1w">Last 7 days</option><option value="all">This entire diary</option></select><textarea id="futureNote" placeholder="Optional: what should future analysis look for?"></textarea><button class="btn" id="futureBtn">Send to the future</button><p class="note" id="futureStatus">No future review queued yet.</p></section>`;
 }
@@ -273,3 +425,4 @@ export const appHtml = pageShell('today', entryBody, '');
 export const enterHtml = pageShell('enter', enterBody, '');
 export const appPageHtml = pageShell('today', appBody, '');
 export const searchHtml = pageShell('atlas', atlasBody, '');
+export const importsHtml = pageShell('imports', importsBody, '');

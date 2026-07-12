@@ -29,6 +29,7 @@ const headerHtml = `
   <nav>
     <a href="/">Today</a>
     <a href="/search">Atlas</a>
+    <a href="/imports">Imports</a>
     <a href="#" id="bookReopen">The book</a>
     <a class="cta" href="/enter">Open the diary</a>
   </nav>
@@ -150,6 +151,7 @@ const heroHtml = `
 
 const sharedScript = `
 const $=id=>document.getElementById(id);
+function trackGuideEvent(name){try{if(window.fathom)window.fathom.trackEvent(name);}catch{}}
 const sessionId=localStorage.guideSessionId ||= crypto.randomUUID();
 const today=new Date().toISOString().slice(0,10);
 let token=localStorage.guideAuthToken||'';let account=null;
@@ -160,11 +162,11 @@ function setStatus(el,msg,ember){if(!el)return;el.textContent=msg;el.style.color
 function setGate(){const signed=!!account;const paid=!!account?.paid;const acc=$('accStatus');if(acc)acc.textContent=signed?account.email+' // '+(paid?'paid':'unpaid'):'Signed out.';$('payStatus') && ($('payStatus').textContent=paid?'Paid account active. Diary open.':signed?'Signed in. Subscribe to unseal the diary.':'No toll paid yet.');const veil=$('veil');if(veil)veil.style.display=(paid?'none':'flex');if($('composer')){$('composer').style.opacity=paid?1:.4;$('composer').style.pointerEvents=paid?'auto':'none';}const pay=$('payBtn');if(pay)pay.disabled=paid;if($('receipt')){$('receipt').innerHTML='session  <b>'+sessionId+'</b>\\npage     <b>'+fmtDate(today)+'</b>\\ngate     <b>'+(paid?'open':'locked')+'</b>\\nrequests logged for operator review';}}
 async function refreshMe(){try{const r=await api('/auth/me',{method:'GET'});account=r.account;setGate();}catch{account=null;setGate();}}
 const sendCode=$('sendCode');
-if(sendCode)sendCode.onclick=async()=>{const em=$('email').value.trim();if(!em){setStatus($('accStatus'),'Enter an email first — the code needs somewhere to land.',true);return;}try{const r=await api('/auth/request-code',{method:'POST',body:JSON.stringify({email:em})});$('gateReturn')&&$('gateReturn').classList.add('codesent');setStatus($('accStatus'),'Code sent. Dev code: '+(r.devCode||'check your inbox'));$('code')&&$('code').focus();}catch(err){setStatus($('accStatus'),'Auth error: '+err.message,true);}};
+if(sendCode)sendCode.onclick=async()=>{const em=$('email').value.trim();if(!em){setStatus($('accStatus'),'Enter an email first — the code needs somewhere to land.',true);return;}try{trackGuideEvent('Guide Sign In Code Requested');const r=await api('/auth/request-code',{method:'POST',body:JSON.stringify({email:em})});$('gateReturn')&&$('gateReturn').classList.add('codesent');if(r.delivery&&r.delivery.sent){setStatus($('accStatus'),'Code sent by email. Check your inbox.');}else{setStatus($('accStatus'),'Email delivery is not configured. Dev code: '+(r.devCode||'unavailable'),true);}$('code')&&$('code').focus();}catch(err){setStatus($('accStatus'),'Auth error: '+err.message,true);}};
 const verifyBtn=$('verifyBtn');
-if(verifyBtn)verifyBtn.onclick=async()=>{const em=$('email').value.trim();const co=$('code').value.trim();if(co.trim().length<6){setStatus($('accStatus'),'That code is short a few digits.',true);return;}try{const r=await api('/auth/verify',{method:'POST',body:JSON.stringify({email:em,code:co})});token=r.token;localStorage.guideAuthToken=token;account=r.account;setGate();if(account&&account.paid)location.href='/app';}catch(err){setStatus($('accStatus'),'Verify error: '+err.message,true);}};
+if(verifyBtn)verifyBtn.onclick=async()=>{const em=$('email').value.trim();const co=$('code').value.trim();if(co.trim().length<6){setStatus($('accStatus'),'That code is short a few digits.',true);return;}try{trackGuideEvent('Guide Sign In Code Submitted');const r=await api('/auth/verify',{method:'POST',body:JSON.stringify({email:em,code:co})});token=r.token;localStorage.guideAuthToken=token;account=r.account;setGate();trackGuideEvent(account&&account.paid?'Guide Sign In Paid':'Guide Sign In Unpaid');if(account&&account.paid)location.href='/app';}catch(err){setStatus($('accStatus'),'Verify error: '+err.message,true);}};
 const payBtn=$('payBtn');
-if(payBtn)payBtn.onclick=async()=>{const signupEmail=$('email2')?.value.trim()||'';const checkoutEmail=account?.email||signupEmail;if(!checkoutEmail){setStatus($('payStatus'),'Enter an email first — it becomes your account.',true);$('email2')&&$('email2').focus();return;}try{payBtn.textContent='Creating Checkout…';setStatus($('payStatus'),'Charting course to Stripe checkout…');const successUrl=account?location.origin+'/app?checkout=success':location.origin+'/enter?checkout=success';const r=await api('/checkout/session',{method:'POST',body:JSON.stringify({sessionId,email:checkoutEmail,successUrl,cancelUrl:location.origin+'/enter?checkout=cancelled'})});if(r.checkout.url){location.href=r.checkout.url;return;}payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),r.checkout.error||'Stripe is not configured yet.',true);}catch(err){payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),'Stripe checkout not ready: '+err.message,true);}};
+if(payBtn)payBtn.onclick=async()=>{const signupEmail=$('email2')?.value.trim()||'';const checkoutEmail=account?.email||signupEmail;if(!checkoutEmail){setStatus($('payStatus'),'Enter an email first — it becomes your account.',true);$('email2')&&$('email2').focus();return;}try{trackGuideEvent('Guide Checkout Started');payBtn.textContent='Creating Checkout…';setStatus($('payStatus'),'Charting course to Stripe checkout…');const successUrl=account?location.origin+'/app?checkout=success':location.origin+'/enter?checkout=success';const r=await api('/checkout/session',{method:'POST',body:JSON.stringify({sessionId,email:checkoutEmail,successUrl,cancelUrl:location.origin+'/enter?checkout=cancelled'})});if(r.checkout.url){location.href=r.checkout.url;return;}payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),r.checkout.error||'Stripe is not configured yet.',true);}catch(err){payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),'Stripe checkout not ready: '+err.message,true);}};
 const futureBtn=$('futureBtn');
 if(futureBtn)futureBtn.onclick=async()=>{try{const r=await api('/future-analysis',{method:'POST',body:JSON.stringify({sessionId,day:today,delay:delayFor($('window').value),question:$('futureNote').value||undefined})});setStatus($('futureStatus'),'Queued '+r.request.id+' ('+$('window').value+') for delayed human review.');}catch(err){setStatus($('futureStatus'),'Future queue error: '+err.message,true);}};
 function delayFor(v){return v==='24h'?'24h':v==='72h'?'72h':v==='1w'?'1w':'all';}
@@ -202,7 +204,7 @@ setGate();refreshMe().finally(()=>{if(location.search.includes('checkout=success
 
 export function pageShell(activeNav: string, bodyHtml: string, script: string): string {
   const field = `<div class="field" aria-hidden="true">${fieldSvg}</div>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hitchhiker's Guide to the Future</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"><style>${themeCss}</style><style>${extraCss}</style></head><body>${field}<div class="wrap">${headerHtml}${bodyHtml}${footerHtml}</div><script>${sharedScript}${script}</script></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hitchhiker's Guide to the Future</title><script src="https://cdn.usefathom.com/script.js" data-site="LLFJJYXQ" defer></script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"><style>${themeCss}</style><style>${extraCss}</style></head><body>${field}<div class="wrap">${headerHtml}${bodyHtml}${footerHtml}</div><script>${sharedScript}${script}</script></body></html>`;
 }
 
 const extraCss = `
@@ -253,6 +255,26 @@ const extraCss = `
 .atlas .searchrow{display:flex;gap:12px;margin-top:30px;max-width:560px}
 .atlas .searchrow input{margin:0}
 .atlas .searchrow .btn{width:auto;padding:0 24px}
+.imports{padding:52px 0 34px}
+.imports-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:24px}
+.imports-head h1{font-weight:800;font-size:clamp(34px,4.4vw,54px);line-height:1.04;letter-spacing:-.01em;margin-top:10px}
+.imports-head p{color:var(--ink-dim);max-width:62ch;margin-top:12px}
+.imports-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:24px;align-items:start}
+.imports-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.imports-list{display:grid;gap:12px;margin-top:14px}
+.import-source,.import-item{background:rgba(10,8,18,.55);border:1px solid var(--gold-ghost);border-radius:12px;padding:16px;position:relative}
+.import-source h3,.import-item h3{font-size:16px;margin:8px 0 6px}
+.import-source p,.import-item p{color:var(--ink-dim);font-size:14px}
+.import-source code,.import-item code{font-family:var(--mono);font-size:11px;color:var(--gold);word-break:break-all}
+.source-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.source-actions .btn{width:auto;padding:10px 13px;font-size:10px;letter-spacing:.16em}
+.imports-search{display:flex;gap:12px;margin:16px 0 12px}
+.imports-search input{margin:0}
+.imports-search .btn{width:auto;padding:0 20px}
+.import-item .meta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.import-item .text{margin-top:10px;max-height:130px;overflow:auto;border-top:1px dashed var(--gold-ghost);padding-top:10px}
+.import-status{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--ink-dim);margin-top:12px;min-height:18px}
+.seed-help{font-size:12px;color:var(--ink-dim);margin:-4px 0 12px}
 .book-overlay{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(6,4,16,.86);backdrop-filter:blur(4px);padding:24px}
 .book-overlay.open{display:flex;animation:bookIn .4s ease both}
 @keyframes bookIn{from{opacity:0}to{opacity:1}}
@@ -353,6 +375,11 @@ const extraCss = `
   .entry{padding:18px}
   .atlas .searchrow{flex-direction:column;gap:10px;margin-top:22px;max-width:none}
   .atlas .searchrow .btn{width:100%;padding:12px 13px}
+  .imports{padding:30px 0 24px}
+  .imports-grid{grid-template-columns:1fr;gap:18px}
+  .imports-form-row{grid-template-columns:1fr;gap:0}
+  .imports-search{flex-direction:column;gap:10px}
+  .imports-search .btn,.source-actions .btn{width:100%;padding:12px 13px}
   .book-overlay{padding:12px;align-items:flex-start;overflow:auto}
   .book-stage{width:100%;max-height:none;margin-top:10px;padding:42px 18px 24px;border-radius:14px}
   .book-stage::before{inset:8px}

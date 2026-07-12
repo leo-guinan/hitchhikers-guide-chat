@@ -56,6 +56,32 @@ export const FutureAnalysisRequestSchema = z.object({
   contact: z.string().optional(),
 });
 
+export const ImportSourceKindSchema = z.enum(['rss', 'substack', 'ghost', 'generic_url', 'youtube_feed', 'x_archive_json']);
+
+export const ImportSourceCreateSchema = z.object({
+  kind: ImportSourceKindSchema,
+  label: z.string().min(1).max(120),
+  url: z.string().url().optional(),
+  handle: z.string().min(1).max(120).optional(),
+  items: z.array(z.object({
+    externalId: z.string().optional(),
+    url: z.string().url().optional(),
+    title: z.string().optional(),
+    text: z.string().min(1),
+    createdAt: z.string().optional(),
+  })).optional(),
+});
+
+export const ImportRunRequestSchema = z.object({
+  limit: z.number().int().min(1).max(200).default(50),
+});
+
+export const ImportedItemSearchSchema = z.object({
+  query: z.string().optional(),
+  sourceId: z.string().optional(),
+  limit: z.number().int().min(1).max(200).default(50),
+});
+
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 export type EmailAuthRequest = z.infer<typeof EmailAuthRequestSchema>;
@@ -63,6 +89,10 @@ export type EmailAuthVerify = z.infer<typeof EmailAuthVerifySchema>;
 export type ContextRequestInput = z.infer<typeof ContextRequestSchema>;
 export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;
 export type FutureAnalysisRequestInput = z.infer<typeof FutureAnalysisRequestSchema>;
+export type ImportSourceKind = z.infer<typeof ImportSourceKindSchema>;
+export type ImportSourceCreateInput = z.infer<typeof ImportSourceCreateSchema>;
+export type ImportRunRequest = z.infer<typeof ImportRunRequestSchema>;
+export type ImportedItemSearch = z.infer<typeof ImportedItemSearchSchema>;
 
 export type Account = {
   id: string;
@@ -116,6 +146,49 @@ export type FutureAnalysisRequest = FutureAnalysisRequestInput & {
   status: 'queued' | 'in_review' | 'added';
   diaryEntryId?: string;
   contextRequestId: string;
+};
+
+export type ImportSource = {
+  id: string;
+  accountId: string;
+  kind: ImportSourceKind;
+  label: string;
+  url?: string;
+  handle?: string;
+  createdAt: string;
+  updatedAt: string;
+  lastRunAt?: string;
+  lastRun?: ImportRunSummary;
+  seedItems?: Array<{
+    externalId?: string;
+    url?: string;
+    title?: string;
+    text: string;
+    createdAt?: string;
+  }>;
+};
+
+export type ImportedItem = {
+  id: string;
+  accountId: string;
+  sourceId: string;
+  sourceKind: ImportSourceKind;
+  sourceLabel: string;
+  externalId?: string;
+  url?: string;
+  title: string;
+  text: string;
+  createdAt?: string;
+  importedAt: string;
+  day: string;
+  wordCount: number;
+};
+
+export type ImportRunSummary = {
+  imported: number;
+  skipped: number;
+  failed: number;
+  message?: string;
 };
 
 export type ChatAnswer = {

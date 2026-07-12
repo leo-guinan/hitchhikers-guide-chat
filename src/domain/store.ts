@@ -14,7 +14,15 @@ import {
   type DiaryPage,
   type FutureAnalysisRequest,
   type FutureAnalysisRequestInput,
+  ImportSourceCreateSchema,
+  type ImportedItem,
+  type ImportedItemSearch,
+  type ImportRunSummary,
+  type ImportSource,
+  type ImportSourceCreateInput,
 } from './schema';
+import { candidateToItem, fetchImportCandidates } from './imports';
+import { sendSignInCodeEmail, type EmailDeliveryResult } from './email';
 
 const dataDir = process.env.GUIDE_DATA_DIR ?? path.join(process.cwd(), 'data');
 const requestDir = path.join(dataDir, 'requests');
@@ -23,6 +31,8 @@ const futureDir = path.join(dataDir, 'future-analysis');
 const accountDir = path.join(dataDir, 'accounts');
 const authCodeDir = path.join(dataDir, 'auth-codes');
 const sessionDir = path.join(dataDir, 'sessions');
+const importSourceDir = path.join(dataDir, 'imports', 'sources');
+const importItemDir = path.join(dataDir, 'imports', 'items');
 const requestLog = path.join(dataDir, 'context-requests.jsonl');
 const futureLog = path.join(dataDir, 'future-analysis.jsonl');
 
@@ -33,20 +43,24 @@ export async function initStore(): Promise<void> {
   await mkdir(accountDir, { recursive: true });
   await mkdir(authCodeDir, { recursive: true });
   await mkdir(sessionDir, { recursive: true });
+  await mkdir(importSourceDir, { recursive: true });
+  await mkdir(importItemDir, { recursive: true });
 }
 
 export function todayKey(now = new Date()): string {
   return now.toISOString().slice(0, 10);
 }
 
-export async function requestEmailCode(email: string): Promise<{ email: string; expiresAt: string; devCode?: string }> {
+export async function requestEmailCode(email: string): Promise<{ email: string; expiresAt: string; devCode?: string; delivery: EmailDeliveryResult }> {
   await initStore();
   const normalized = email.toLowerCase();
   const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
   const expiresAt = new Date(Date.now() + 15 * 60_000).toISOString();
   await writeFile(authCodePath(normalized), JSON.stringify({ email: normalized, code, expiresAt }, null, 2));
-  // No mail provider yet. Returning the code keeps local/VPS auth testable without pretending email was sent.
-  return { email: normalized, expiresAt, devCode: code };
+  const delivery = await sendSignInCodeEmail({ email: normalized, code, expiresAt });
+  // Returning devCode keeps local/VPS auth testable when email delivery is not configured.
+  // Once RESEND_API_KEY + GUIDE_EMAIL_FROM are set, the code is sent and no longer returned.
+  return { email: normalized, expiresAt, delivery, devCode: delivery.sent ? undefined : code };
 }
 
 export async function verifyEmailCode(email: string, code: string): Promise<{ account: Account; session: AuthSession }> {
@@ -204,6 +218,89 @@ export async function createFutureAnalysisRequest(input: FutureAnalysisRequestIn
   return request;
 }
 
+export async function createImportSource(accountId: string, input: ImportSourceCreateInput): Promise<ImportSource> {
+  await initStore();
+  const parsed = ImportSourceCreateSchema.parse(input);
+  const now = new Date().toISOString();
+  const source: ImportSource = {
+    id: `src_${hash(`${accountId}|${parsed.kind}|${parsed.label}|${parsed.url ?? parsed.handle ?? now}`).slice(0, 12)}`,
+    accountId,
+    kind: parsed.kind,
+    label: parsed.label,
+    url: parsed.url,
+    handle: parsed.handle,
+    seedItems: parsed.items as ImportSource['seedItems'],
+    createdAt: now,
+    updatedAt: now,
+  };
+  await writeFile(importSourcePath(accountId, source.id), JSON.stringify(source, null, 2));
+  return source;
+}
+
+export async function listImportSources(accountId: string): Promise<ImportSource[]> {
+  await initStore();
+  const files = await readdir(importSourceDir).catch(() => [] as string[]);
+  const prefix = `${hash(accountId)}__`;
+  const sources = await Promise.all(files.filter((file) => file.startsWith(prefix) && file.endsWith('.json')).map(async (file) => JSON.parse(await readFile(path.join(importSourceDir, file), 'utf8')) as ImportSource));
+  return sources.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getImportSource(accountId: string, sourceId: string): Promise<ImportSource | null> {
+  await initStore();
+  try {
+    const source = JSON.parse(await readFile(importSourcePath(accountId, sourceId), 'utf8')) as ImportSource;
+    return source.accountId === accountId ? source : null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+export async function runImportSource(accountId: string, sourceId: string, limit = 50): Promise<{ source: ImportSource; summary: ImportRunSummary; items: ImportedItem[] }> {
+  const source = await getImportSource(accountId, sourceId);
+  if (!source) throw new Error('Import source not found');
+  const existing = new Set((await listImportedItems(accountId, { limit: 10_000 })).map((item) => item.id));
+  let failed = 0;
+  let candidates: Awaited<ReturnType<typeof fetchImportCandidates>> = [];
+  try {
+    candidates = await fetchImportCandidates(source, limit);
+  } catch {
+    failed = 1;
+  }
+  const now = new Date().toISOString();
+  const imported: ImportedItem[] = [];
+  let skipped = 0;
+  for (const candidate of candidates) {
+    const item = candidateToItem(accountId, source, candidate, now);
+    if (existing.has(item.id)) {
+      skipped += 1;
+      continue;
+    }
+    await writeFile(importItemPath(accountId, item.id), JSON.stringify(item, null, 2));
+    existing.add(item.id);
+    imported.push(item);
+  }
+  const summary: ImportRunSummary = { imported: imported.length, skipped, failed, message: failed ? 'Source fetch failed; no new items imported.' : undefined };
+  const updated: ImportSource = { ...source, updatedAt: now, lastRunAt: now, lastRun: summary };
+  await writeFile(importSourcePath(accountId, sourceId), JSON.stringify(updated, null, 2));
+  return { source: updated, summary, items: imported };
+}
+
+export async function listImportedItems(accountId: string, search: Partial<ImportedItemSearch> = {}): Promise<ImportedItem[]> {
+  await initStore();
+  const files = await readdir(importItemDir).catch(() => [] as string[]);
+  const prefix = `${hash(accountId)}__`;
+  const q = (search.query ?? '').trim().toLowerCase();
+  const sourceId = search.sourceId;
+  const limit = search.limit ?? 50;
+  const items = await Promise.all(files.filter((file) => file.startsWith(prefix) && file.endsWith('.json')).map(async (file) => JSON.parse(await readFile(path.join(importItemDir, file), 'utf8')) as ImportedItem));
+  return items
+    .filter((item) => !sourceId || item.sourceId === sourceId)
+    .filter((item) => !q || importedItemSearchText(item).includes(q))
+    .sort((a, b) => (b.createdAt ?? b.importedAt).localeCompare(a.createdAt ?? a.importedAt))
+    .slice(0, limit);
+}
+
 async function saveDiaryPage(page: DiaryPage): Promise<void> {
   await initStore();
   await writeFile(diaryPath(page.day), JSON.stringify(page, null, 2));
@@ -225,6 +322,14 @@ function sessionPath(token: string): string {
   return path.join(sessionDir, `${hash(token)}.json`);
 }
 
+function importSourcePath(accountId: string, sourceId: string): string {
+  return path.join(importSourceDir, `${hash(accountId)}__${sourceId}.json`);
+}
+
+function importItemPath(accountId: string, itemId: string): string {
+  return path.join(importItemDir, `${hash(accountId)}__${itemId}.json`);
+}
+
 function diarySearchText(page: DiaryPage): string {
   return [
     page.day,
@@ -235,6 +340,10 @@ function diarySearchText(page: DiaryPage): string {
     ...(page.entry?.humanContextNeeded ?? []),
     ...page.turns.map((turn) => turn.content),
   ].filter(Boolean).join('\n').toLowerCase();
+}
+
+function importedItemSearchText(item: ImportedItem): string {
+  return [item.title, item.text, item.url, item.sourceLabel, item.sourceKind, item.day].filter(Boolean).join('\n').toLowerCase();
 }
 
 function hash(value: string): string {
