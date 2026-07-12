@@ -17,6 +17,7 @@
     "deploy:staging": "TARGET_ENV=staging bash scripts/deploy_vps.sh",
     "agent:new-user": "TARGET_ENV=staging tsx scripts/new-user-agent.ts",
     "substack:diary": "tsx scripts/substack-to-diary.ts",
+    "conversations:diary": "tsx scripts/conversations-to-diary.ts",
     "backload:medium": "tsx scripts/backload-medium.ts",
     "backload:community": "tsx scripts/backload-community.ts"
   },

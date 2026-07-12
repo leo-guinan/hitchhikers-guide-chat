@@ -27,6 +27,7 @@ npm run build
 npm run dev
 npm run substack:diary -- <substack-url-or-slug> --out ./data/substack-diary/<name>
 npm run substack:diary -- <substack-url-or-slug> --session-id acct_... --install --data-dir ./data
+npm run conversations:diary -- --provider openai --file conversations.json --mode privacy --session-id acct_... --install
 ```
 
 ## Substack to diary conversion
@@ -43,6 +44,20 @@ The converter paginates Substack's archive API by offset, cross-checks `/sitemap
 - `diary/*.json` — Guide-compatible `DiaryPage` JSON, one page per post
 
 By default the command exits non-zero if the completeness gate fails. Use `--allow-incomplete` only for explicit partial backfills. Add `--install --session-id <account-id>` to merge generated pages into `data/diary/YYYY-MM-DD.json`; same-day posts are appended to one diary page and repeated installs skip duplicate turns. Generated sidecar output under `data/substack-diary/` is ignored by Git.
+
+## OpenAI / Anthropic conversation archive imports
+
+```bash
+npm run conversations:diary -- --provider openai --file ~/Downloads/openai/conversations.json --mode privacy --session-id acct_... --install
+npm run conversations:diary -- --provider anthropic --file ~/Downloads/claude/conversations.json --mode full --session-id acct_... --out ./data/ai-conversation-diary/anthropic-full
+```
+
+Modes:
+
+- `privacy` — imports only conversation shape and compression analysis: role sequence, turn-size buckets, question/code counts, heat score, and user/assistant balance. It deliberately excludes raw titles, raw text, snippets, URLs, names, and keywords.
+- `full` — imports full user/assistant turns plus the same heat/compression analysis.
+
+The adapters understand OpenAI `mapping` exports and Anthropic `chat_messages` exports. Add `--install --data-dir ./data` to merge generated diary pages into the app's diary store. Generated sidecar output under `data/ai-conversation-diary/` is ignored by Git.
 
 ## Routes
 
