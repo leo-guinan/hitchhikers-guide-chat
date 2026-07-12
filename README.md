@@ -25,7 +25,23 @@ npm test
 npm run smoke
 npm run build
 npm run dev
+npm run substack:diary -- <substack-url-or-slug> --out ./data/substack-diary/<name>
 ```
+
+## Substack to diary conversion
+
+```bash
+npm run substack:diary -- white-mirror --out ./data/substack-diary/white-mirror
+```
+
+The converter paginates Substack's archive API by offset, cross-checks `/sitemap.xml`, and writes:
+
+- `all_posts.json` — normalized Substack posts
+- `scrape_completeness_report.json` — offset probe, date range, sitemap/API diff counts
+- `manifest.json` — generated file list
+- `diary/*.json` — Guide-compatible `DiaryPage` JSON, one page per post
+
+By default the command exits non-zero if the completeness gate fails. Use `--allow-incomplete` only for explicit partial backfills. Generated output under `data/substack-diary/` is ignored by Git.
 
 ## Routes
 
