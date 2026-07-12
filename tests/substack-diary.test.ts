@@ -42,6 +42,26 @@ describe('substack diary conversion', () => {
     expect(result.report.sitemapMissingFromApiSample).toEqual(['https://example.substack.com/p/missing']);
   });
 
+  it('installs multiple same-day posts into one diary page without duplicating turns', async () => {
+    const fetchFn = mockSubstackFetch([
+      post('1', 'first', 'First Post', '2026-01-01T12:00:00Z', '<p>First body.</p>'),
+      post('2', 'second', 'Second Post', '2026-01-01T13:00:00Z', '<p>Second body.</p>'),
+    ]);
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'substack-install-'));
+
+    const first = await convertSubstackToDiary('example', { sessionId: 'acct_test', outputDir: path.join(dataDir, 'sidecar'), installDataDir: dataDir, fetchFn, pageSize: 20 });
+    const second = await convertSubstackToDiary('example', { sessionId: 'acct_test', outputDir: path.join(dataDir, 'sidecar-2'), installDataDir: dataDir, fetchFn, pageSize: 20 });
+
+    expect(first.report.installedPageCount).toBe(2);
+    expect(first.report.skippedTurnCount).toBe(0);
+    expect(second.report.skippedTurnCount).toBe(4);
+    const page = JSON.parse(await readFile(path.join(dataDir, 'diary', '2026-01-01.json'), 'utf8')) as { turns: Array<{ id: string }>; entry?: { title: string; turnCount: number } };
+    expect(page.turns).toHaveLength(4);
+    expect(new Set(page.turns.map((turn) => turn.id)).size).toBe(4);
+    expect(page.entry?.title).toBe('2 diary imports for 2026-01-01');
+    expect(page.entry?.turnCount).toBe(4);
+  });
+
   it('normalizes slugs and urls to a publication base', () => {
     expect(normalizeSubstackBase('white-mirror')).toBe('https://white-mirror.substack.com');
     expect(normalizeSubstackBase('https://white-mirror.substack.com/p/a-post')).toBe('https://white-mirror.substack.com');

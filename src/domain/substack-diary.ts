@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import type { ChatTurn, DiaryEntry, DiaryPage } from './schema';
 
@@ -46,9 +46,17 @@ export type SubstackDiaryConversion = {
   pages: DiaryPage[];
   report: SubstackCompletenessReport & {
     diaryPageCount: number;
+    installedPageCount?: number;
+    skippedTurnCount?: number;
     outputDir?: string;
     files?: string[];
   };
+};
+
+export type DiaryInstallResult = {
+  installedPageCount: number;
+  skippedTurnCount: number;
+  files: string[];
 };
 
 export async function scrapeSubstack(baseInput: string, options: { fetchFn?: typeof fetch; pageSize?: number; maxPosts?: number } = {}): Promise<SubstackScrapeResult> {
@@ -84,7 +92,8 @@ export function postsToDiaryPages(posts: SubstackPost[], sessionId: string): Dia
   return posts.map((post) => {
     const day = dayFrom(post.postDate);
     const createdAt = dateTimeFrom(post.postDate);
-    const sourceTurnIds = [`substack_${stableHash(post.id)}_title`, `substack_${stableHash(post.id)}_body`];
+    const postKey = stableHash(`${post.canonicalUrl}|${post.id}`);
+    const sourceTurnIds = [`substack_${postKey}_title`, `substack_${postKey}_body`];
     const turns: ChatTurn[] = [
       {
         id: sourceTurnIds[0],
@@ -100,7 +109,7 @@ export function postsToDiaryPages(posts: SubstackPost[], sessionId: string): Dia
       },
     ];
     const entry: DiaryEntry = {
-      id: `entry_${day}_substack_${stableHash(post.id).slice(0, 10)}`,
+      id: `entry_${day}_substack_${postKey.slice(0, 10)}`,
       day,
       createdAt,
       updatedAt: createdAt,
@@ -116,7 +125,7 @@ export function postsToDiaryPages(posts: SubstackPost[], sessionId: string): Dia
   });
 }
 
-export async function convertSubstackToDiary(baseInput: string, options: { sessionId: string; outputDir?: string; fetchFn?: typeof fetch; pageSize?: number; maxPosts?: number } ): Promise<SubstackDiaryConversion> {
+export async function convertSubstackToDiary(baseInput: string, options: { sessionId: string; outputDir?: string; installDataDir?: string; fetchFn?: typeof fetch; pageSize?: number; maxPosts?: number } ): Promise<SubstackDiaryConversion> {
   const scrape = await scrapeSubstack(baseInput, options);
   const pages = postsToDiaryPages(scrape.posts, options.sessionId);
   const files: string[] = [];
@@ -135,7 +144,76 @@ export async function convertSubstackToDiary(baseInput: string, options: { sessi
     await writeFile(path.join(options.outputDir, 'manifest.json'), JSON.stringify({ baseUrl: scrape.baseUrl, sessionId: options.sessionId, pageCount: pages.length, files }, null, 2));
     files.push(path.join(options.outputDir, 'manifest.json'));
   }
-  return { pages, report: { ...scrape.report, diaryPageCount: pages.length, outputDir: options.outputDir, files } };
+  const install = options.installDataDir ? await installDiaryPages(pages, options.installDataDir) : undefined;
+  return { pages, report: { ...scrape.report, diaryPageCount: pages.length, installedPageCount: install?.installedPageCount, skippedTurnCount: install?.skippedTurnCount, outputDir: options.outputDir, files: [...files, ...(install?.files ?? [])] } };
+}
+
+export async function installDiaryPages(pages: DiaryPage[], dataDir: string): Promise<DiaryInstallResult> {
+  const diaryDir = path.join(dataDir, 'diary');
+  await mkdir(diaryDir, { recursive: true });
+  const grouped = new Map<string, DiaryPage[]>();
+  for (const page of pages) grouped.set(page.day, [...(grouped.get(page.day) ?? []), page]);
+
+  const files: string[] = [];
+  let installedPageCount = 0;
+  let skippedTurnCount = 0;
+  for (const [day, dayPages] of Array.from(grouped.entries())) {
+    const file = path.join(diaryDir, `${day}.json`);
+    const existing = await readDiaryPage(file).catch(() => null);
+    const merged = mergeDiaryPages(day, dayPages, existing);
+    skippedTurnCount += merged.skippedTurnCount;
+    await writeFile(file, JSON.stringify(merged.page, null, 2));
+    files.push(file);
+    installedPageCount += dayPages.length;
+  }
+  return { installedPageCount, skippedTurnCount, files };
+}
+
+async function readDiaryPage(file: string): Promise<DiaryPage> {
+  return JSON.parse(await readFile(file, 'utf8')) as DiaryPage;
+}
+
+function mergeDiaryPages(day: string, imports: DiaryPage[], existing: DiaryPage | null): { page: DiaryPage; skippedTurnCount: number } {
+  const sortedImports = imports.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const base: DiaryPage = existing ?? { day, sessionId: sortedImports[0]?.sessionId ?? 'anonymous', createdAt: sortedImports[0]?.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString(), turns: [] };
+  const seenTurnIds = new Set(base.turns.map((turn) => turn.id));
+  const turns = [...base.turns];
+  const addedEntries: DiaryEntry[] = [];
+  let skippedTurnCount = 0;
+  for (const page of sortedImports) {
+    let addedPageTurn = false;
+    for (const turn of page.turns) {
+      if (seenTurnIds.has(turn.id)) {
+        skippedTurnCount += 1;
+        continue;
+      }
+      seenTurnIds.add(turn.id);
+      turns.push(turn);
+      addedPageTurn = true;
+    }
+    if (addedPageTurn && page.entry) {
+      addedEntries.push(page.entry);
+    }
+  }
+  turns.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  const existingEntry = base.entry;
+  const entrySource = existingEntry ? [existingEntry, ...addedEntries] : addedEntries;
+  const createdAt = [base.createdAt, ...sortedImports.map((page) => page.createdAt)].sort()[0] ?? new Date().toISOString();
+  const updatedAt = new Date().toISOString();
+  const entry: DiaryEntry | undefined = entrySource.length ? {
+    id: existingEntry?.id ?? `entry_${day}_substack_imports`,
+    day,
+    createdAt: existingEntry?.createdAt ?? createdAt,
+    updatedAt,
+    title: entrySource.length === 1 ? entrySource[0].title : `${entrySource.length} diary imports for ${day}`,
+    summary: entrySource.map((item) => `- ${item.title}: ${item.summary}`).join('\n').slice(0, 20_000),
+    keyQuestions: unique(entrySource.flatMap((item) => item.keyQuestions)).slice(0, 50),
+    openLoops: unique(entrySource.flatMap((item) => item.openLoops)).slice(0, 50),
+    humanContextNeeded: unique(entrySource.flatMap((item) => item.humanContextNeeded)).slice(0, 50),
+    turnCount: turns.length,
+    sourceTurnIds: unique([...entrySource.flatMap((item) => item.sourceTurnIds), ...turns.map((turn) => turn.id)]),
+  } : undefined;
+  return { page: { ...base, createdAt, updatedAt, turns, entry }, skippedTurnCount };
 }
 
 export function normalizeSubstackBase(input: string): string {
@@ -287,6 +365,10 @@ function numberValue(value: unknown): number | undefined {
 
 function countWords(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
 }
 
 function stableHash(value: string): string {

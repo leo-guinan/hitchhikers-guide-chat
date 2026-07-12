@@ -26,6 +26,7 @@ npm run smoke
 npm run build
 npm run dev
 npm run substack:diary -- <substack-url-or-slug> --out ./data/substack-diary/<name>
+npm run substack:diary -- <substack-url-or-slug> --session-id acct_... --install --data-dir ./data
 ```
 
 ## Substack to diary conversion
@@ -41,7 +42,7 @@ The converter paginates Substack's archive API by offset, cross-checks `/sitemap
 - `manifest.json` — generated file list
 - `diary/*.json` — Guide-compatible `DiaryPage` JSON, one page per post
 
-By default the command exits non-zero if the completeness gate fails. Use `--allow-incomplete` only for explicit partial backfills. Generated output under `data/substack-diary/` is ignored by Git.
+By default the command exits non-zero if the completeness gate fails. Use `--allow-incomplete` only for explicit partial backfills. Add `--install --session-id <account-id>` to merge generated pages into `data/diary/YYYY-MM-DD.json`; same-day posts are appended to one diary page and repeated installs skip duplicate turns. Generated sidecar output under `data/substack-diary/` is ignored by Git.
 
 ## Routes
 
