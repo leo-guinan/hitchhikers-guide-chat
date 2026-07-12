@@ -9,7 +9,10 @@
     "build": "mastra build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "smoke": "tsx scripts/smoke.ts"
+    "smoke": "tsx scripts/smoke.ts",
+    "ci:local": "bash scripts/local_ci.sh",
+    "verify:prod": "bash scripts/verify_prod.sh",
+    "deploy:vps": "bash scripts/deploy_vps.sh"
   },
   "dependencies": {
     "@mastra/core": "^0.24.0",

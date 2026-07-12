@@ -11,4 +11,5 @@ data/future-analysis/*.json
 data/accounts/*.json
 data/auth-codes/*.json
 data/sessions/*.json
+deploy-receipts/*.json
 .DS_Store
