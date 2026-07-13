@@ -247,6 +247,7 @@ const atlasBody = `
   <div class="source-tabs" id="atlasSourceTabs" aria-label="Atlas source filter">
     <button type="button" class="btn ghost active" data-source="all">All</button>
     <button type="button" class="btn ghost" data-source="x">X archive <span id="atlasXCount">0</span></button>
+    <button type="button" class="btn ghost" data-source="ai">AI chats <span id="atlasAiCount">0</span></button>
     <button type="button" class="btn ghost" data-source="substack">Substack <span id="atlasSubstackCount">0</span></button>
     <button type="button" class="btn ghost" data-source="other">Other <span id="atlasOtherCount">0</span></button>
   </div>
@@ -296,14 +297,16 @@ const atlasBody = `
   function sourceForPage(p){
     const hay=[p.entry?.title,p.entry?.summary,...(p.turns||[]).map(t=>t.content)].filter(Boolean).join('\\n').toLowerCase();
     if(hay.includes('x archive')||hay.includes('backfilled x archive')) return 'x';
+    if(hay.includes('conversation heat analysis (openai')||hay.includes('conversation heat analysis (anthropic')||hay.includes('privacy-conscious openai')||hay.includes('privacy-conscious anthropic')) return 'ai';
     if(hay.includes('substack import')||hay.includes('import substack post')) return 'substack';
     return 'other';
   }
   function short(v,n){v=String(v||'');return v.length>n?v.slice(0,n-1)+'…':v;}
   function updateSourceTabs(pages){
-    const counts={x:0,substack:0,other:0};
+    const counts={x:0,ai:0,substack:0,other:0};
     pages.forEach(p=>{counts[sourceForPage(p)]++;});
     $('atlasXCount').textContent=counts.x;
+    $('atlasAiCount').textContent=counts.ai;
     $('atlasSubstackCount').textContent=counts.substack;
     $('atlasOtherCount').textContent=counts.other;
     $('atlasSourceTabs').querySelectorAll('button').forEach(btn=>btn.classList.toggle('active',btn.dataset.source===currentSource));
