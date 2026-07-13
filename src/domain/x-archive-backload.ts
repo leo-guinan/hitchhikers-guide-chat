@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
-import type { ImportedItem, ImportSource } from './schema';
+import type { ChatTurn, DiaryEntry, DiaryPage, ImportedItem, ImportSource } from './schema';
+import { installDiaryPages } from './substack-diary';
 
 export type XArchiveBackloadOptions = {
   tweetsFile: string;
@@ -28,6 +29,18 @@ export type XArchiveBackloadManifest = {
   sourceId: string;
   sourcePath: string;
   itemsDir: string;
+  dateRange: { min: string | null; max: string | null };
+};
+
+export type XImportDiaryBackfillManifest = {
+  kind: 'x_imports_diary_backfill';
+  generatedAt: string;
+  accountId: string;
+  sourceLabel: string;
+  totalItems: number;
+  diaryPageCount: number;
+  installedPageCount: number;
+  skippedTurnCount: number;
   dateRange: { min: string | null; max: string | null };
 };
 
@@ -113,6 +126,88 @@ export async function backloadXArchiveToImports(options: XArchiveBackloadOptions
   };
   await writeFile(path.join(backloadDir, 'x-archive-import-backload-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
+}
+
+
+export async function backfillXImportedItemsToDiary(options: { items: ImportedItem[]; accountId: string; dataDir: string; sourceLabel?: string }): Promise<XImportDiaryBackfillManifest> {
+  const sourceLabel = options.sourceLabel ?? 'Leo X archive';
+  const generatedAt = new Date().toISOString();
+  const xItems = options.items
+    .filter((item) => item.accountId === options.accountId)
+    .filter((item) => item.sourceKind === 'x_archive_json')
+    .filter((item) => item.sourceLabel === sourceLabel)
+    .filter((item) => !/^RT\s+@/i.test(item.text));
+  const pages = xImportedItemsToDiaryPages(xItems, { accountId: options.accountId, generatedAt, sourceLabel });
+  const install = await installDiaryPages(pages, options.dataDir);
+  const days = pages.map((page) => page.day).sort();
+  const manifest: XImportDiaryBackfillManifest = {
+    kind: 'x_imports_diary_backfill',
+    generatedAt,
+    accountId: options.accountId,
+    sourceLabel,
+    totalItems: xItems.length,
+    diaryPageCount: pages.length,
+    installedPageCount: install.installedPageCount,
+    skippedTurnCount: install.skippedTurnCount,
+    dateRange: { min: days[0] ?? null, max: days[days.length - 1] ?? null },
+  };
+  await mkdir(path.join(options.dataDir, 'backloads'), { recursive: true });
+  await writeFile(path.join(options.dataDir, 'backloads', 'x-imports-diary-backfill-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  return manifest;
+}
+
+export function xImportedItemsToDiaryPages(items: ImportedItem[], options: { accountId: string; generatedAt?: string; sourceLabel?: string }): DiaryPage[] {
+  const generatedAt = options.generatedAt ?? new Date().toISOString();
+  const sourceLabel = options.sourceLabel ?? 'Leo X archive';
+  const grouped = new Map<string, ImportedItem[]>();
+  for (const item of items.filter((item) => item.day && item.text)) {
+    grouped.set(item.day, [...(grouped.get(item.day) ?? []), item]);
+  }
+  return Array.from(grouped.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([day, dayItems]) => {
+    const sorted = dayItems.slice().sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? '') || a.id.localeCompare(b.id));
+    const turns = sorted.map((item) => xImportedItemTurn(item, sourceLabel));
+    const totalWords = sorted.reduce((sum, item) => sum + item.wordCount, 0);
+    const sample = sorted.slice(0, 5);
+    const entry: DiaryEntry = {
+      id: `entry_${day}_x_${hash(sorted.map((item) => item.id).join('|')).slice(0, 10)}`,
+      day,
+      createdAt: sorted[0]?.createdAt ?? generatedAt,
+      updatedAt: generatedAt,
+      title: sorted.length === 1 ? sorted[0].title : `X archive: ${sorted.length} tweets`,
+      summary: sorted.length === 1
+        ? `${day}: X archive import of one tweet (${sorted[0].wordCount} words). ${snippet(sorted[0].text, 240)}`
+        : `${day}: X archive import of ${sorted.length} tweets (${totalWords} total words). Samples: ${sample.map((item) => `“${snippet(item.text, 120)}”`).join(' / ')}.`,
+      keyQuestions: unique(sorted.flatMap((item) => extractQuestions(item.text))).slice(0, 12),
+      openLoops: [],
+      humanContextNeeded: [],
+      turnCount: turns.length,
+      sourceTurnIds: turns.map((turn) => turn.id),
+    };
+    return {
+      day,
+      sessionId: options.accountId,
+      createdAt: sorted[0]?.createdAt ?? `${day}T00:00:00.000Z`,
+      updatedAt: generatedAt,
+      turns,
+      entry,
+    };
+  });
+}
+
+function xImportedItemTurn(item: ImportedItem, sourceLabel: string): ChatTurn {
+  return {
+    id: `turn_${item.day.replace(/-/g, '')}_x_${hash(item.id).slice(0, 10)}`,
+    role: 'user',
+    createdAt: item.createdAt ?? `${item.day}T00:00:00.000Z`,
+    content: [
+      `Backfilled X archive item: ${item.title}`,
+      `Source: ${sourceLabel}`,
+      item.url ? `Source URL: ${item.url}` : undefined,
+      `Words: ${item.wordCount}`,
+      '',
+      item.text,
+    ].filter((part) => part !== undefined).join('\n'),
+  };
 }
 
 export async function parseXArchiveTweets(filePath: string, handle?: string): Promise<XArchiveCandidate[]> {
@@ -240,6 +335,20 @@ function cleanHandle(value: string): string {
 
 function cleanText(value: string): string {
   return value.replace(/https?:\/\/t\.co\/\S+/g, '').replace(/\s+/g, ' ').trim();
+}
+
+
+function snippet(text: string, limit: number): string {
+  const cleaned = cleanText(text);
+  return cleaned.length > limit ? `${cleaned.slice(0, limit - 1)}…` : cleaned;
+}
+
+function extractQuestions(text: string): string[] {
+  return unique(text.split(/(?<=[?])\s+/).map((part) => part.trim()).filter((part) => part.endsWith('?'))).slice(0, 20);
+}
+
+function unique(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function countWords(text: string): number {

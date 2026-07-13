@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { backloadXArchiveToImports, parseXArchiveNoteTweets, parseXArchiveTweets } from '../src/domain/x-archive-backload';
+import { backfillXImportedItemsToDiary, backloadXArchiveToImports, parseXArchiveNoteTweets, parseXArchiveTweets, xImportedItemsToDiaryPages } from '../src/domain/x-archive-backload';
 
 describe('X archive import backload', () => {
   it('parses Twitter archive JS and note tweets', async () => {
@@ -56,6 +56,35 @@ describe('X archive import backload', () => {
     expect(second.imported).toBe(0);
     expect(second.skippedExisting).toBe(3);
   });
+
+  it('projects X import artifacts into account-owned diary pages for Atlas', async () => {
+    const root = await makeFixture();
+    process.env.GUIDE_DATA_DIR = path.join(root.target, 'data');
+    vi.resetModules();
+    const store = await import('../src/domain/store');
+    const account = await store.markAccountPaid('x-diary-test@example.com');
+    const source = await store.createImportSource(account.id, {
+      kind: 'x_archive_json',
+      label: 'Leo X archive',
+      items: [
+        { externalId: 'tweet-1', title: 'Tweet one', text: 'First tweet asks what now?', createdAt: '2025-09-12T10:00:00.000Z' },
+        { externalId: 'tweet-2', title: 'Tweet two', text: 'Second tweet ships the artifact.', createdAt: '2025-09-12T11:00:00.000Z' },
+        { externalId: 'tweet-3', title: 'Tweet three', text: 'Another day.', createdAt: '2025-09-13T10:00:00.000Z' },
+      ],
+    });
+    await store.runImportSource(account.id, source.id, 50);
+    const items = await store.listImportedItems(account.id, { limit: 100 });
+    const pages = xImportedItemsToDiaryPages(items, { accountId: account.id, sourceLabel: 'Leo X archive', generatedAt: '2026-07-13T00:00:00.000Z' });
+    expect(pages).toHaveLength(2);
+    expect(pages[0].entry?.title).toBe('X archive: 2 tweets');
+    expect(pages[0].turns).toHaveLength(2);
+
+    const manifest = await backfillXImportedItemsToDiary({ items, accountId: account.id, dataDir: path.join(root.target, 'data'), sourceLabel: 'Leo X archive' });
+    expect(manifest.diaryPageCount).toBe(2);
+    const diaryPages = await store.searchDiaryPages('artifact', account.id);
+    expect(diaryPages.map((page) => page.day)).toContain('2025-09-12');
+  });
+
 });
 
 async function makeFixture(): Promise<{ tweetsFile: string; notesFile: string; target: string }> {

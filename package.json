@@ -20,7 +20,8 @@
     "conversations:diary": "tsx scripts/conversations-to-diary.ts",
     "backload:medium": "tsx scripts/backload-medium.ts",
     "backload:community": "tsx scripts/backload-community.ts",
-    "backload:x-archive": "tsx scripts/backload-x-archive.ts"
+    "backload:x-archive": "tsx scripts/backload-x-archive.ts",
+    "backfill:x-diary": "tsx scripts/backfill-x-imports-to-diary.ts"
   },
   "dependencies": {
     "@mastra/core": "^0.24.0",
