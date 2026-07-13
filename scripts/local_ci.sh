@@ -39,6 +39,13 @@ const eventChecks = [
 for (const [html, eventName] of eventChecks) {
   if (!html.includes(eventName)) throw new Error(`missing analytics event ${eventName}`);
 }
+for (const [name, html] of Object.entries({ appPageHtml, searchHtml, importsHtml })) {
+  const refreshIndex = html.indexOf('async function refreshMe');
+  const firstCallIndex = html.indexOf('await refreshMe()');
+  if (refreshIndex < 0 || firstCallIndex < 0 || refreshIndex > firstCallIndex) {
+    throw new Error(`${name} calls refreshMe before the shared helper is defined`);
+  }
+}
 console.log('LOCAL_HTML_CONTRACT_OK');
 JS
 

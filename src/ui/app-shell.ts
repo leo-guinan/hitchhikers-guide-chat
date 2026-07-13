@@ -204,7 +204,17 @@ setGate();refreshMe().finally(()=>{if(location.search.includes('checkout=success
 
 export function pageShell(activeNav: string, bodyHtml: string, script: string): string {
   const field = `<div class="field" aria-hidden="true">${fieldSvg}</div>`;
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hitchhiker's Guide to the Future</title><script src="https://cdn.usefathom.com/script.js" data-site="LLFJJYXQ" defer></script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"><style>${themeCss}</style><style>${extraCss}</style></head><body>${field}<div class="wrap">${headerHtml}${bodyHtml}${footerHtml}</div><script>${sharedScript}${script}</script></body></html>`;
+  const { html, scripts } = extractInlineScripts(bodyHtml);
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hitchhiker's Guide to the Future</title><script src="https://cdn.usefathom.com/script.js" data-site="LLFJJYXQ" defer></script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"><style>${themeCss}</style><style>${extraCss}</style></head><body>${field}<div class="wrap">${headerHtml}${html}${footerHtml}</div><script>${sharedScript}${scripts.join('\n')}${script}</script></body></html>`;
+}
+
+function extractInlineScripts(html: string): { html: string; scripts: string[] } {
+  const scripts: string[] = [];
+  const cleanHtml = html.replace(/<script>([\s\S]*?)<\/script>/g, (_match, body: string) => {
+    scripts.push(body);
+    return '';
+  });
+  return { html: cleanHtml, scripts };
 }
 
 const extraCss = `
