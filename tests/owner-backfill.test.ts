@@ -15,6 +15,7 @@ describe('owner account backfill', () => {
     await mkdir(path.join(dataDir, 'diary'), { recursive: true });
     await writeFile(path.join(dataDir, 'diary', '2026-01-02.json'), JSON.stringify(page('2026-01-02', 'acct_legacy', 'Legacy page'), null, 2));
     await writeFile(path.join(dataDir, 'diary', '2026-01-03.json'), JSON.stringify(page('2026-01-03', 'acct_other', 'Other page'), null, 2));
+    await writeFile(path.join(dataDir, 'diary', '2099-01-01.json'), JSON.stringify(page('2099-01-01', 'smoke-runner', 'Smoke page'), null, 2));
 
     const owner = await store.markAccountPaid('owner@example.com');
     const summary = await store.ensureOwnerAccountBackfill(owner);
@@ -29,8 +30,11 @@ describe('owner account backfill', () => {
 
     const claimed = JSON.parse(await readFile(path.join(dataDir, 'diary', '2026-01-02.json'), 'utf8')) as DiaryPage;
     const untouched = JSON.parse(await readFile(path.join(dataDir, 'diary', '2026-01-03.json'), 'utf8')) as DiaryPage;
+    const smoke = JSON.parse(await readFile(path.join(dataDir, 'diary', '2099-01-01.json'), 'utf8')) as DiaryPage;
     expect(claimed.sessionId).toBe(owner.id);
     expect(untouched.sessionId).toBe('acct_other');
+    expect(smoke.sessionId).toBe('smoke-runner');
+    expect(await store.searchDiaryPages('2099', owner.id)).toHaveLength(0);
   });
 
   it('does not backfill diary entries into arbitrary paid accounts', async () => {

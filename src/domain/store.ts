@@ -193,7 +193,8 @@ export async function searchDiaryPages(query = '', accountId?: string): Promise<
   const files = await readdir(diaryDir).catch(() => [] as string[]);
   const pages = await Promise.all(files.filter((file) => file.endsWith('.json')).map(async (file) => JSON.parse(await readFile(path.join(diaryDir, file), 'utf8')) as DiaryPage));
   const q = query.trim().toLowerCase();
-  const accountPages = accountId ? pages.filter((page) => page.sessionId === accountId) : pages;
+  const realPages = pages.filter((page) => !isSyntheticSmokeDay(page.day));
+  const accountPages = accountId ? realPages.filter((page) => page.sessionId === accountId) : realPages;
   const filtered = q
     ? accountPages.filter((page) => diarySearchText(page).includes(q))
     : accountPages;
@@ -208,6 +209,7 @@ export async function ensureOwnerAccountBackfill(account: Account): Promise<Owne
   const pages = await Promise.all(files.filter((file) => file.endsWith('.json')).map(async (file) => JSON.parse(await readFile(path.join(diaryDir, file), 'utf8')) as DiaryPage));
   let claimedDiaryPages = 0;
   for (const page of pages) {
+    if (isSyntheticSmokeDay(page.day)) continue;
     if (page.sessionId !== account.id && shouldClaimLegacySession(page.sessionId)) {
       page.sessionId = account.id;
       page.updatedAt = new Date().toISOString();
@@ -228,6 +230,7 @@ export async function ensureOwnerAccountBackfill(account: Account): Promise<Owne
   };
   let backfilledImportItems = 0;
   for (const page of pages) {
+    if (isSyntheticSmokeDay(page.day)) continue;
     if (page.sessionId !== account.id || !page.entry) continue;
     const itemId = `imp_${hash(`${account.id}|${sourceId}|${page.day}|${page.entry.id}`).slice(0, 16)}`;
     if (await jsonFileExists(importItemPath(account.id, itemId))) continue;
@@ -250,7 +253,7 @@ export async function ensureOwnerAccountBackfill(account: Account): Promise<Owne
     backfilledImportItems += 1;
   }
   source.lastRunAt = now;
-  source.lastRun = { imported: backfilledImportItems, skipped: pages.filter((page) => page.sessionId === account.id && page.entry).length - backfilledImportItems, failed: 0, message: 'Mirrored account-owned diary entries into the imported-artifact ledger.' };
+  source.lastRun = { imported: backfilledImportItems, skipped: pages.filter((page) => !isSyntheticSmokeDay(page.day) && page.sessionId === account.id && page.entry).length - backfilledImportItems, failed: 0, message: 'Mirrored account-owned diary entries into the imported-artifact ledger.' };
   await writeFile(importSourcePath(account.id, sourceId), JSON.stringify(source, null, 2));
   return { owner: true, claimedDiaryPages, backfilledImportItems, sourceId };
 }
@@ -421,6 +424,10 @@ function shouldClaimLegacySession(sessionId: string | undefined): boolean {
   if (!id || id === 'anonymous' || id.startsWith('smoke-')) return true;
   const configured = (process.env.GUIDE_LEGACY_ACCOUNT_IDS ?? '').split(',').map((value) => value.trim()).filter(Boolean);
   return configured.includes(id);
+}
+
+function isSyntheticSmokeDay(day: string): boolean {
+  return /^2099-/.test(day);
 }
 
 async function jsonFileExists(file: string): Promise<boolean> {
