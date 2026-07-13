@@ -36,4 +36,31 @@ describe('guide imports', () => {
     expect(matches).toHaveLength(1);
     expect(matches[0].sourceKind).toBe('x_archive_json');
   });
+
+  it('lists newest import runs first and hides synthetic smoke artifacts', async () => {
+    process.env.GUIDE_DATA_DIR = await mkdtemp(path.join(tmpdir(), 'guide-import-order-'));
+    vi.resetModules();
+    const store = await import('../src/domain/store');
+    const account = await store.markAccountPaid('import-order-test@example.com');
+    const diary = await store.createImportSource(account.id, {
+      kind: 'diary_backfill',
+      label: 'Account diary backfill',
+      items: [
+        { externalId: 'smoke', title: 'Smoke future page', text: 'Synthetic smoke artifact.', createdAt: '2099-01-01T00:00:00.000Z' },
+        { externalId: 'substack', title: 'Substack latest', text: 'A newer essay by content date.', createdAt: '2026-07-12T00:00:00.000Z' },
+      ],
+    });
+    await store.runImportSource(account.id, diary.id, 50);
+    const x = await store.createImportSource(account.id, {
+      kind: 'x_archive_json',
+      label: 'Leo X archive',
+      items: [
+        { externalId: 'tweet-older-content', title: 'Tweet 2025', text: 'Tweet imported later but older by content date.', createdAt: '2025-09-12T00:00:00.000Z' },
+      ],
+    });
+    await store.runImportSource(account.id, x.id, 50);
+
+    const items = await store.listImportedItems(account.id, { limit: 10 });
+    expect(items.map((item) => item.title)).toEqual(['Tweet 2025', 'Substack latest']);
+  });
 });

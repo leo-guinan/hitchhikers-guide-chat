@@ -363,8 +363,9 @@ export async function listImportedItems(accountId: string, search: Partial<Impor
   const items = await Promise.all(files.filter((file) => file.startsWith(prefix) && file.endsWith('.json')).map(async (file) => JSON.parse(await readFile(path.join(importItemDir, file), 'utf8')) as ImportedItem));
   return items
     .filter((item) => !sourceId || item.sourceId === sourceId)
+    .filter((item) => !isSyntheticSmokeDay(item.day))
     .filter((item) => !q || importedItemSearchText(item).includes(q))
-    .sort((a, b) => (b.createdAt ?? b.importedAt).localeCompare(a.createdAt ?? a.importedAt))
+    .sort((a, b) => b.importedAt.localeCompare(a.importedAt) || (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
     .slice(0, limit);
 }
 
