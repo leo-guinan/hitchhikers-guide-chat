@@ -29,6 +29,7 @@ const headerHtml = `
   <nav>
     <a href="/">Today</a>
     <a href="/search">Atlas</a>
+    <a href="/hotspots">Hotspots</a>
     <a href="/imports">Imports</a>
     <a href="#" id="bookReopen">The book</a>
     <a class="cta" href="/enter">Open the diary</a>
@@ -282,6 +283,31 @@ const extraCss = `
 .entry.hot::after{content:"";position:absolute;top:16px;right:16px;width:9px;height:9px;background:var(--ember);transform:rotate(45deg);box-shadow:0 0 12px var(--ember-glow)}
 .entry.hot .annot:first-child{color:var(--ember)}
 .hotnote{margin-top:14px;padding:10px 12px;border-left:2px solid var(--ember);background:rgba(226,84,44,.06);border-radius:0 8px 8px 0;font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:#e8a48d}
+.hotspots{padding:58px 0 34px}
+.hotspots-hero{border:1px solid var(--gold-faint);border-radius:18px;padding:clamp(28px,5vw,58px);background:linear-gradient(160deg,rgba(18,13,30,.86),rgba(11,8,20,.56));position:relative;overflow:hidden}
+.hotspots-hero::after{content:"";position:absolute;right:-120px;top:-140px;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,var(--ember-glow),transparent 62%);opacity:.42;pointer-events:none}
+.hotspots h1{font-weight:800;font-size:clamp(40px,5.4vw,68px);line-height:1.02;letter-spacing:-.02em;max-width:12ch;margin-top:18px}
+.hotspots .lede{margin-top:20px;max-width:72ch;color:var(--ink-dim);font-size:17px}
+.hotspot-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:30px;position:relative;z-index:1}
+.hotspot-summary-grid div{border:1px solid var(--gold-ghost);border-radius:12px;padding:16px;background:rgba(6,4,16,.35)}
+.hotspot-summary-grid b{display:block;font-size:28px;color:var(--gold)}
+.hotspot-summary-grid span{display:block;color:var(--ink-dim);font-size:13px;margin-top:4px}
+.hotspot-panel,.hotspot-flow>div,.hotspot-card{background:rgba(10,8,18,.58);border:1px solid var(--gold-ghost);border-radius:14px;padding:22px}
+.hotspot-panel{margin-top:24px}
+.hotspot-panel h2,.hotspot-flow h3,.hotspot-card h2{letter-spacing:-.01em}
+.hotspot-panel p,.hotspot-card p,.hotspot-flow p{color:var(--ink-dim);margin-top:10px}
+.hotspot-flow{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
+.hotspot-index{display:flex;gap:10px;flex-wrap:wrap;margin:24px 0}
+.hotspot-index a{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);text-decoration:none;border:1px solid var(--gold-ghost);border-radius:999px;padding:8px 10px;background:rgba(212,169,78,.04)}
+.hotspot-list{display:grid;gap:18px}
+.hotspot-card-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px}
+.hotspot-pills{display:flex;gap:8px;flex-wrap:wrap}
+.hotspot-pill{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);border:1px solid var(--gold-ghost);border-radius:999px;padding:5px 8px;background:rgba(212,169,78,.05)}
+.hotspot-thesis{font-size:17px;color:var(--ink)!important;max-width:76ch}
+.hotspot-metrics{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.hotspot-metrics span{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--ink-dim);border:1px solid rgba(107,85,144,.35);border-radius:8px;padding:8px 10px;background:rgba(107,85,144,.08)}
+.hotspot-metrics b{color:var(--gold);font-size:13px}
+.hotspot-risk{border-left:2px solid var(--ember);padding:10px 12px;background:rgba(226,84,44,.06);border-radius:0 8px 8px 0;color:#e8a48d!important}
 .atlas .searchrow{display:flex;gap:12px;margin-top:30px;max-width:560px}
 .atlas .searchrow input{margin:0}
 .atlas .searchrow .btn{width:auto;padding:0 24px}
@@ -406,6 +432,8 @@ const extraCss = `
   .heatmap-shapes{width:100%;margin-left:0}
   .starline{margin:4px -8px 0;overflow:hidden}
   .entries{grid-template-columns:1fr;gap:14px;margin-top:20px}
+  .hotspot-summary-grid,.hotspot-flow{grid-template-columns:1fr}
+  .hotspots h1{font-size:clamp(34px,13vw,54px)}
   .entry{padding:18px}
   .atlas .searchrow{flex-direction:column;gap:10px;margin-top:22px;max-width:none}
   .atlas .searchrow .btn{width:100%;padding:12px 13px}

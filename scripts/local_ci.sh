@@ -15,10 +15,10 @@ npm run smoke
 
 echo "== local_ci: rendered HTML contract =="
 node --import tsx - <<'JS'
-import { appHtml, enterHtml, appPageHtml, searchHtml, importsHtml } from './src/ui/app-html.ts';
+import { appHtml, enterHtml, appPageHtml, searchHtml, hotspotsHtml, importsHtml } from './src/ui/app-html.ts';
 import vm from 'node:vm';
 
-const pages = { appHtml, enterHtml, appPageHtml, searchHtml, importsHtml };
+const pages = { appHtml, enterHtml, appPageHtml, searchHtml, hotspotsHtml, importsHtml };
 const requiredInEveryPage = [
   'https://cdn.usefathom.com/script.js',
   'data-site="LLFJJYXQ"',
@@ -49,6 +49,8 @@ for (const [name, html] of Object.entries({ appPageHtml, searchHtml, importsHtml
   const scripts = Array.from(html.matchAll(/<script>([\s\S]*?)<\/script>/g)).map((match) => match[1]);
   for (const script of scripts) new vm.Script(script, { filename: `${name}.inline.js` });
 }
+if (!hotspotsHtml.includes('How a private AI furnace became a public thesis.')) throw new Error('hotspots page missing headline');
+if (!hotspotsHtml.includes('Problematic pattern to watch')) throw new Error('hotspots page missing risk analysis');
 console.log('LOCAL_HTML_CONTRACT_OK');
 JS
 

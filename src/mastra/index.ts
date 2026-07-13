@@ -39,7 +39,7 @@ import {
   todayKey,
   verifyEmailCode,
 } from '../domain/store';
-import { appHtml, searchHtml, enterHtml, appPageHtml, importsHtml } from '../ui/app-html';
+import { appHtml, searchHtml, enterHtml, appPageHtml, hotspotsHtml, importsHtml } from '../ui/app-html';
 
 await initStore();
 
@@ -67,6 +67,11 @@ export const mastra = new Mastra({
         method: 'GET',
         requiresAuth: false,
         handler: async () => new Response(searchHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+      }),
+      registerApiRoute('/hotspots', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async () => new Response(hotspotsHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
       }),
       registerApiRoute('/imports', {
         method: 'GET',

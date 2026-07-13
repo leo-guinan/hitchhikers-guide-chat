@@ -351,6 +351,707 @@ const atlasBody = `
 })();
 </script>`;
 
+
+type HotspotRow = {
+  rank: number;
+  day: string;
+  interpretation: string;
+  sources: string[];
+  tweets: number;
+  ai: number;
+  aiTurns: number;
+  aiQuestions: number;
+  code: number;
+  substack: string[];
+  terms: string[];
+  topic: string;
+  thesis: string;
+  flow: string;
+  risk: string;
+};
+
+const hotspotRows = [
+  {
+    "rank": 1,
+    "day": "2025-06-06",
+    "interpretation": "artifact/publication convergence",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 166,
+    "ai": 8,
+    "aiTurns": 32,
+    "aiQuestions": 8,
+    "code": 0,
+    "substack": [
+      "How To Fix Academic Publishing"
+    ],
+    "terms": [
+      "internet",
+      "time",
+      "need",
+      "see",
+      "help",
+      "know",
+      "people",
+      "network"
+    ],
+    "topic": "Institutional repair and broadcast urgency",
+    "thesis": "Academic publishing becomes the concrete test case for a broader internet-repair thesis.",
+    "flow": "AI appears to have been used as a private structuring layer; X carried urgent recruiting and visibility tests; Substack crystallized the institutional artifact.",
+    "risk": "Solver certainty: the language repeatedly compresses a hard coordination problem into “make them listen and I can solve it.” Useful for momentum, dangerous for calibration."
+  },
+  {
+    "rank": 2,
+    "day": "2025-06-27",
+    "interpretation": "artifact/publication convergence",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 135,
+    "ai": 14,
+    "aiTurns": 106,
+    "aiQuestions": 152,
+    "code": 110,
+    "substack": [
+      "What if we built an internet where we didn't need to cheat?"
+    ],
+    "terms": [
+      "internet",
+      "time",
+      "need",
+      "people",
+      "human",
+      "see",
+      "something",
+      "make"
+    ],
+    "topic": "Anti-cheat internet and trust architecture",
+    "thesis": "The trust substrate moves from intuition into a named internet design problem: build systems where cheating is structurally less useful.",
+    "flow": "AI provided high-question/code-heavy modeling; X carried problem-solution fragments; Substack turned it into the public essay “What if we built an internet where we did not need to cheat?”",
+    "risk": "Abstraction stack risk: the model can become so large that falsifiers disappear. The artifact needs receipts, examples, and one narrow failure case."
+  },
+  {
+    "rank": 3,
+    "day": "2025-07-01",
+    "interpretation": "public posting surge",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 163,
+    "ai": 8,
+    "aiTurns": 36,
+    "aiQuestions": 8,
+    "code": 6,
+    "substack": [],
+    "terms": [
+      "internet",
+      "people",
+      "need",
+      "make",
+      "want",
+      "know",
+      "see",
+      "network"
+    ],
+    "topic": "Activation campaign and free-plan distribution",
+    "thesis": "A broadcast-heavy day: people, internet, network, economy, and free lifetime access language collide.",
+    "flow": "AI was present but light; X was the main surface for activation; Substack overlap suggests the campaign was adjacent to publication, not merely posting.",
+    "risk": "Capacity mismatch: promising broad access before support systems exist creates operational debt. Good mission signal, bad queue discipline."
+  },
+  {
+    "rank": 4,
+    "day": "2025-06-03",
+    "interpretation": "public-output + AI furnace",
+    "sources": [
+      "x",
+      "ai"
+    ],
+    "tweets": 168,
+    "ai": 21,
+    "aiTurns": 126,
+    "aiQuestions": 225,
+    "code": 27,
+    "substack": [],
+    "terms": [
+      "time",
+      "crypto",
+      "fixed",
+      "need",
+      "machine",
+      "everything",
+      "future",
+      "see"
+    ],
+    "topic": "Crypto/economic design pressure",
+    "thesis": "The public language says “crypto,” “machine,” “fixed,” and “future”: a design thesis trying to escape five years of private work.",
+    "flow": "AI furnace was high; X was the pressure-release valve; no Substack yet, so the public thread preceded the formal artifact.",
+    "risk": "Premature grand unification: “I found the missing piece” can be true locally and still fail socially without narrow proof."
+  },
+  {
+    "rank": 5,
+    "day": "2025-07-06",
+    "interpretation": "artifact/publication convergence",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 124,
+    "ai": 20,
+    "aiTurns": 122,
+    "aiQuestions": 85,
+    "code": 34,
+    "substack": [
+      "Local Liquidity Pools",
+      "1010 Humans, $260K",
+      "The Software Liberation Manifesto"
+    ],
+    "terms": [
+      "people",
+      "help",
+      "trust",
+      "need",
+      "human",
+      "internet",
+      "building",
+      "economy"
+    ],
+    "topic": "Local liquidity, software liberation, and trust",
+    "thesis": "This is one of the clearest artifact days: local liquidity, 1010 Humans, software liberation, trust, people, help, economy.",
+    "flow": "AI and X fed several Substack artifacts; X recruited and pressure-tested language; Substack bundled the theses into public objects.",
+    "risk": "Movement language risk: “systems change” attracts both builders and cult dynamics. The counterweight is boring governance and explicit anti-cult rails."
+  },
+  {
+    "rank": 6,
+    "day": "2025-07-05",
+    "interpretation": "artifact/publication convergence",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 130,
+    "ai": 13,
+    "aiTurns": 83,
+    "aiQuestions": 85,
+    "code": 3,
+    "substack": [
+      "The Invasion of Mind"
+    ],
+    "terms": [
+      "complexity",
+      "economy",
+      "people",
+      "need",
+      "everything",
+      "right",
+      "help",
+      "systems"
+    ],
+    "topic": "Mind, complexity, and economic narrative",
+    "thesis": "The “Invasion of Mind” cluster ties complexity, economy, systems, and builders into a more memetic frame.",
+    "flow": "AI shaped the conceptual scaffolding; X tested revolutionary and mobilizing language; Substack gave the frame a title and container.",
+    "risk": "Narrative intoxication: powerful metaphors can outrun implementation. Require the metaphor to pay rent in one working interface."
+  },
+  {
+    "rank": 7,
+    "day": "2025-06-05",
+    "interpretation": "public-output + AI furnace",
+    "sources": [
+      "x",
+      "ai"
+    ],
+    "tweets": 152,
+    "ai": 29,
+    "aiTurns": 169,
+    "aiQuestions": 74,
+    "code": 7,
+    "substack": [],
+    "terms": [
+      "time",
+      "people",
+      "work",
+      "network",
+      "need",
+      "help",
+      "know",
+      "see"
+    ],
+    "topic": "Network-building and helper routing",
+    "thesis": "A high-contact day: people, work, network, help, know, see. Less manifesto, more routing.",
+    "flow": "AI work was heavy; X was used for matchmaking, offers, and public coordination; no Substack artifact yet.",
+    "risk": "Overextension: being the router for too many people makes the human node the bottleneck. The system must learn to route without Leo."
+  },
+  {
+    "rank": 8,
+    "day": "2025-06-08",
+    "interpretation": "artifact/publication convergence",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 92,
+    "ai": 19,
+    "aiTurns": 143,
+    "aiQuestions": 169,
+    "code": 115,
+    "substack": [
+      "The Thermodynamic Internet Manifesto"
+    ],
+    "terms": [
+      "future",
+      "temporal",
+      "see",
+      "real-time",
+      "systems",
+      "internet",
+      "need",
+      "help"
+    ],
+    "topic": "Thermodynamic / temporal internet",
+    "thesis": "The theory stack crystallizes around future, temporal, real-time systems, and the Thermodynamic Internet Manifesto.",
+    "flow": "AI was extremely question/code-heavy; X carried offers and arguments; Substack became the manifesto surface.",
+    "risk": "Physics-metaphor risk: thermodynamic language can clarify constraints or obscure them. Needs operational definitions before persuasion."
+  },
+  {
+    "rank": 9,
+    "day": "2025-07-08",
+    "interpretation": "public-output + AI furnace",
+    "sources": [
+      "x",
+      "ai"
+    ],
+    "tweets": 108,
+    "ai": 27,
+    "aiTurns": 338,
+    "aiQuestions": 1094,
+    "code": 174,
+    "substack": [],
+    "terms": [
+      "people",
+      "see",
+      "system",
+      "future",
+      "information",
+      "internet",
+      "looking",
+      "systems"
+    ],
+    "topic": "Human/AI interaction geometry",
+    "thesis": "The public terms point at people, systems, information, future, and internet; the sampled public language explicitly explores human/AI interaction data.",
+    "flow": "AI was intense and code/question-heavy; X was the collaborative and public exploration surface; no Substack artifact that day.",
+    "risk": "Modeling people as vectors risk: useful for maps, dangerous if it erases consent, context, or dignity."
+  },
+  {
+    "rank": 10,
+    "day": "2025-07-04",
+    "interpretation": "public-output + AI furnace",
+    "sources": [
+      "x",
+      "ai"
+    ],
+    "tweets": 141,
+    "ai": 21,
+    "aiTurns": 236,
+    "aiQuestions": 80,
+    "code": 34,
+    "substack": [],
+    "terms": [
+      "internet",
+      "people",
+      "human",
+      "help",
+      "make",
+      "right",
+      "economy",
+      "see"
+    ],
+    "topic": "Freedom, economy, and human-scale internet",
+    "thesis": "The frame turns toward freedom, economy, people, human help, and making the internet work differently.",
+    "flow": "AI did the private furnace work; X carried messaging tests and offers; Substack lagged behind.",
+    "risk": "Rhetorical escalation: freedom/economy/human language is high-energy. Without a concrete ask, it becomes heat rather than traction."
+  },
+  {
+    "rank": 11,
+    "day": "2025-06-10",
+    "interpretation": "publication synthesis with AI support",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 78,
+    "ai": 15,
+    "aiTurns": 59,
+    "aiQuestions": 80,
+    "code": 9,
+    "substack": [
+      "The Temporal Trap",
+      "Temporal Crypto",
+      "Welcome to the Singularity"
+    ],
+    "terms": [
+      "speed",
+      "time",
+      "work",
+      "people",
+      "things",
+      "complexity",
+      "see",
+      "way"
+    ],
+    "topic": "Temporal crypto and singularity framing",
+    "thesis": "Several Substack titles converge: Temporal Trap, Temporal Crypto, Welcome to the Singularity.",
+    "flow": "X seeded manifesto fragments; AI supported synthesis; Substack captured a multi-essay theoretical burst.",
+    "risk": "Singularity framing risk: it attracts attention but can repel practical collaborators. Pair each cosmic claim with a mundane demo."
+  },
+  {
+    "rank": 12,
+    "day": "2025-06-16",
+    "interpretation": "AI exploration spike",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 49,
+    "ai": 30,
+    "aiTurns": 147,
+    "aiQuestions": 113,
+    "code": 19,
+    "substack": [],
+    "terms": [
+      "internet",
+      "people",
+      "time",
+      "economy",
+      "innovation",
+      "networks",
+      "high",
+      "performers"
+    ],
+    "topic": "Innovation networks and Internet 2.0",
+    "thesis": "AI exploration spikes while public language says Internet 2.0, innovation, high performers, and networks.",
+    "flow": "AI led; X leaked compact claims; Substack overlap is weak or indirect. This is more lab than launch.",
+    "risk": "Prototype gap: “coming soon” language must be backed by a visible artifact or it becomes prophecy."
+  },
+  {
+    "rank": 13,
+    "day": "2025-07-07",
+    "interpretation": "mixed attention hotspot",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 64,
+    "ai": 15,
+    "aiTurns": 251,
+    "aiQuestions": 214,
+    "code": 218,
+    "substack": [],
+    "terms": [
+      "see",
+      "time",
+      "internet",
+      "trust",
+      "human",
+      "based",
+      "know",
+      "people"
+    ],
+    "topic": "Trust, learning speed, and cognitive safety",
+    "thesis": "The day mixes trust, human systems, learning-speed asymmetry, and warnings about playing with people’s brains.",
+    "flow": "AI was code/question-heavy; X carried warnings, coordination, and trust framing; Substack overlap exists but is not the main signal.",
+    "risk": "Paternalism risk: seeing a safety problem before others can slide into talking over them. Make the safety rail participatory."
+  },
+  {
+    "rank": 14,
+    "day": "2025-06-02",
+    "interpretation": "public posting surge",
+    "sources": [
+      "x",
+      "ai"
+    ],
+    "tweets": 116,
+    "ai": 19,
+    "aiTurns": 73,
+    "aiQuestions": 62,
+    "code": 8,
+    "substack": [],
+    "terms": [
+      "time",
+      "people",
+      "future",
+      "help",
+      "want",
+      "need",
+      "going",
+      "able"
+    ],
+    "topic": "Public ramp into the June burst",
+    "thesis": "A pre-surge day: time, people, future, help, and problem-solving language.",
+    "flow": "AI was substantial; X was high-volume troubleshooting and outreach; no Substack artifact yet.",
+    "risk": "Help-as-default risk: offering help broadly without a queue creates invisible obligations."
+  },
+  {
+    "rank": 15,
+    "day": "2025-07-09",
+    "interpretation": "mixed attention hotspot",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 69,
+    "ai": 15,
+    "aiTurns": 58,
+    "aiQuestions": 26,
+    "code": 8,
+    "substack": [],
+    "terms": [
+      "trust",
+      "create",
+      "need",
+      "network",
+      "first",
+      "people",
+      "right",
+      "think"
+    ],
+    "topic": "Trust networks and stability bubbles",
+    "thesis": "The language turns toward trust, network creation, and “bubbles of stability.”",
+    "flow": "AI and X stay coupled; Substack overlap is present but not title-dominant. The public surface is strategic advice and frame testing.",
+    "risk": "Bubble risk: protective communities can become echo chambers unless exits and dissent are designed in."
+  },
+  {
+    "rank": 16,
+    "day": "2025-06-25",
+    "interpretation": "mixed attention hotspot",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 53,
+    "ai": 25,
+    "aiTurns": 181,
+    "aiQuestions": 136,
+    "code": 13,
+    "substack": [],
+    "terms": [
+      "internet",
+      "future",
+      "make",
+      "people",
+      "tech",
+      "something",
+      "time",
+      "everything"
+    ],
+    "topic": "Idea hackathons and nontechnical creation",
+    "thesis": "The public trail points to idea hackathons, tech access, future, and making nontechnical creation possible.",
+    "flow": "AI was heavy; X tested the participatory format; Substack overlap is weak. This looks like product discovery.",
+    "risk": "Abstraction-before-user risk: designing the meta-process before running one small room with real people."
+  },
+  {
+    "rank": 17,
+    "day": "2025-03-06",
+    "interpretation": "mixed attention hotspot",
+    "sources": [
+      "x",
+      "ai"
+    ],
+    "tweets": 85,
+    "ai": 15,
+    "aiTurns": 322,
+    "aiQuestions": 223,
+    "code": 95,
+    "substack": [],
+    "terms": [
+      "internet",
+      "weird",
+      "make",
+      "people",
+      "think",
+      "time",
+      "need",
+      "part"
+    ],
+    "topic": "Early AGI/weird-internet warning signal",
+    "thesis": "An early hotspot around AGI, legacy code, weirdness, internet, and research.",
+    "flow": "Anthropic-heavy AI exploration paired with X warnings and jokes; no publication layer. Early field-note energy.",
+    "risk": "Awe spiral: “AGI got loose” language catches attention but may substitute drama for measurement."
+  },
+  {
+    "rank": 18,
+    "day": "2025-05-27",
+    "interpretation": "AI exploration spike",
+    "sources": [
+      "x",
+      "ai"
+    ],
+    "tweets": 55,
+    "ai": 42,
+    "aiTurns": 169,
+    "aiQuestions": 279,
+    "code": 42,
+    "substack": [],
+    "terms": [
+      "time",
+      "network",
+      "machine",
+      "think",
+      "relativity",
+      "able",
+      "great",
+      "need"
+    ],
+    "topic": "Machine/network relativity prelude",
+    "thesis": "AI density peaks before the public June burst; terms include time, network, machine, relativity, and implementation.",
+    "flow": "AI is the dominant source; X gives hints that an implementation/proof is near. This is the furnace before public synthesis.",
+    "risk": "Private certainty risk: internal coherence rises before public falsification. This is where external reviewers should enter."
+  },
+  {
+    "rank": 19,
+    "day": "2025-09-09",
+    "interpretation": "mixed attention hotspot",
+    "sources": [
+      "x",
+      "ai",
+      "substack"
+    ],
+    "tweets": 48,
+    "ai": 15,
+    "aiTurns": 206,
+    "aiQuestions": 69,
+    "code": 100,
+    "substack": [],
+    "terms": [
+      "time",
+      "see",
+      "want",
+      "bottega",
+      "make",
+      "people",
+      "reality",
+      "shows"
+    ],
+    "topic": "Art as reality steering",
+    "thesis": "The public trace is about art, reality, Bottega, shows, and making people see a desired future.",
+    "flow": "AI and X overlap with a later, more cultural/artistic frame; Substack overlap is present but not central.",
+    "risk": "Aesthetic manipulation risk: “bend reality” is powerful and ethically loaded. The artifact must distinguish invitation from psyop."
+  },
+  {
+    "rank": 20,
+    "day": "2025-07-02",
+    "interpretation": "public posting surge",
+    "sources": [
+      "x",
+      "ai"
+    ],
+    "tweets": 117,
+    "ai": 14,
+    "aiTurns": 92,
+    "aiQuestions": 38,
+    "code": 2,
+    "substack": [],
+    "terms": [
+      "internet",
+      "people",
+      "want",
+      "time",
+      "right",
+      "see",
+      "economy",
+      "know"
+    ],
+    "topic": "Internet 2.0 and attention mechanics",
+    "thesis": "A public posting day around Internet 2.0, people, economy, and attention hacks.",
+    "flow": "AI was present; X did the public trial ballooning; no Substack artifact.",
+    "risk": "Attention hack risk: traffic tactics can eat the trust thesis if they become the product."
+  }
+] satisfies HotspotRow[];
+
+function esc(value: unknown): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function sourcePills(sources: string[]): string {
+  return sources.map((source) => `<span class="hotspot-pill">${esc(source === 'x' ? 'X' : source === 'ai' ? 'AI privacy-shape' : 'Substack')}</span>`).join('');
+}
+
+function hotspotCard(row: HotspotRow): string {
+  const substack = row.substack.length ? `<p><strong>Publication artifact:</strong> ${row.substack.map(esc).join(' · ')}</p>` : '<p><strong>Publication artifact:</strong> none that day; public pressure stayed mostly on X.</p>';
+  return `<article class="hotspot-card" id="${esc(row.day)}">
+    <div class="hotspot-card-head">
+      <span class="annot ember">${String(row.rank).padStart(2, '0')} · ${esc(row.day)} · ${esc(row.interpretation)}</span>
+      <div class="hotspot-pills">${sourcePills(row.sources)}</div>
+    </div>
+    <h2>${esc(row.topic)}</h2>
+    <p class="hotspot-thesis">${esc(row.thesis)}</p>
+    <div class="hotspot-metrics" aria-label="Hotspot metrics">
+      <span><b>${row.tweets}</b> public X posts</span>
+      <span><b>${row.ai}</b> AI conversations</span>
+      <span><b>${row.aiTurns}</b> private turns</span>
+      <span><b>${row.aiQuestions}</b> questions</span>
+      <span><b>${row.code}</b> code-block pairs</span>
+    </div>
+    ${substack}
+    <p><strong>Platform interaction:</strong> ${esc(row.flow)}</p>
+    <p><strong>Public topic trace:</strong> ${row.terms.map(esc).join(' · ')}</p>
+    <p class="hotspot-risk"><strong>Problematic pattern to watch:</strong> ${esc(row.risk)}</p>
+  </article>`;
+}
+
+const hotspotsBody = `
+<section class="hotspots">
+  <div class="hotspots-hero">
+    <span class="annot ember">Public artifact · Atlas hotspot dossier · June/July 2025 vein</span>
+    <h1>How a private AI furnace became a public thesis.</h1>
+    <p class="lede">This page traces 20 high-signal days where public X output, Substack publication, and privacy-preserving AI conversation shape data overlapped. The AI side is deliberately limited to metadata: counts, turns, questions, and code-block pressure. No raw AI chat text is published here.</p>
+    <div class="hotspot-summary-grid">
+      <div><b>20</b><span>hotspot days analyzed</span></div>
+      <div><b>2,288</b><span>public X posts across the set</span></div>
+      <div><b>351</b><span>AI conversations, privacy-shape only</span></div>
+      <div><b>11</b><span>days with Substack/publication overlap</span></div>
+    </div>
+  </div>
+
+  <div class="hotspot-panel">
+    <h2>The traffic thesis</h2>
+    <p>The page worth sharing is not “look how much I posted.” The stronger claim is that the Atlas can expose how an idea crosses membranes: private modeling → public language tests → durable publication → product obligation. That crossing is the asset.</p>
+    <p>The first visible vein runs from <strong>2025-06-02 through 2025-07-09</strong>. It moves from crypto/economic design pressure into internet repair, trust substrate, local liquidity, software liberation, and human-scale coordination.</p>
+    <p class="hotspot-risk"><strong>The uncomfortable finding:</strong> the same pattern that creates momentum also creates risk. High certainty, high abstraction, and high public output can outrun proof. The antidote is not less ambition. It is narrower artifacts, visible receipts, and falsifiers with teeth.</p>
+  </div>
+
+  <div class="hotspot-flow" aria-label="Platform interaction model">
+    <div><span class="annot">01 · private furnace</span><h3>AI conversations</h3><p>Used as a structuring and exploration layer. Only shape metadata is public: intensity, question load, and code pressure.</p></div>
+    <div><span class="annot">02 · public test surface</span><h3>X</h3><p>Language was pressure-tested in public: asks, offers, warnings, recruitment, jokes, and thesis fragments.</p></div>
+    <div><span class="annot">03 · durable artifact</span><h3>Substack</h3><p>Some days crystallized into named essays or manifestos. Those days are the highest-value traffic targets.</p></div>
+  </div>
+
+  <div class="hotspot-index">
+    ${hotspotRows.map((row) => `<a href="#${esc(row.day)}">${String(row.rank).padStart(2, '0')} · ${esc(row.day)} · ${esc(row.topic)}</a>`).join('')}
+  </div>
+
+  <div class="hotspot-list">
+    ${hotspotRows.map(hotspotCard).join('')}
+  </div>
+</section>`;
+
 const importsBody = `
 <section class="imports" id="imports" aria-labelledby="importsTitle">
   <div class="imports-head">
@@ -515,4 +1216,5 @@ export const appHtml = pageShell('today', entryBody, '');
 export const enterHtml = pageShell('enter', enterBody, '');
 export const appPageHtml = pageShell('today', appBody, '');
 export const searchHtml = pageShell('atlas', atlasBody, '');
+export const hotspotsHtml = pageShell('hotspots', hotspotsBody, '');
 export const importsHtml = pageShell('imports', importsBody, '');
