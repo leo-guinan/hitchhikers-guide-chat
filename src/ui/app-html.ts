@@ -307,6 +307,12 @@ const atlasBody = `
     $('atlasOtherCount').textContent=counts.other;
     $('atlasSourceTabs').querySelectorAll('button').forEach(btn=>btn.classList.toggle('active',btn.dataset.source===currentSource));
   }
+  function xTurnsForPage(p){return (p.turns||[]).filter(t=>String(t.content||'').toLowerCase().includes('backfilled x archive item:'));}
+  function xCardForPage(p){
+    const turns=xTurnsForPage(p);
+    const samples=turns.slice(0,3).map(t=>String(t.content||'').split('\\n').slice(-1)[0]).filter(Boolean);
+    return {title:'X archive: '+turns.length+' tweet'+(turns.length===1?'':'s'),summary:p.day+': '+turns.length+' X archive tweet'+(turns.length===1?'':'s')+(samples.length?'. Samples: '+samples.map(s=>'“'+short(s,120)+'”').join(' / '):'.')};
+  }
   function renderPages(pages){
     entriesEl.innerHTML='';
     const visible=currentSource==='all'?pages:pages.filter(p=>sourceForPage(p)===currentSource);
@@ -318,9 +324,10 @@ const atlasBody = `
       const isHot=!!(p.contextRequests&&p.contextRequests.length)|| (e&&/flare|hot|drift/i.test(e.summary||''));
       if(isHot) flares++;
       const a=document.createElement('a'); a.className='entry'+(isHot?' hot':''); a.href='#';
-      const title=e?.title||('Day '+fmtDate(p.day));
-      const summary=e?.summary||(p.turns.length?('Raw page, '+p.turns.length+' turns, not yet compressed.'):'Blank page.');
-      a.innerHTML='<span class="annot">'+fmtDate(p.day)+(isHot?' <span class="dot">·</span> flare':'')+'</span><h3></h3><p></p>'+(isHot?'<div class="hotnote">HOT DAY · drifted past safe orbit · operator note: worth a second pass with a human aboard</div>':'');
+      const xCard=currentSource==='x'?xCardForPage(p):null;
+      const title=xCard?.title||e?.title||('Day '+fmtDate(p.day));
+      const summary=xCard?.summary||e?.summary||(p.turns.length?('Raw page, '+p.turns.length+' turns, not yet compressed.'):'Blank page.');
+      a.innerHTML='<span class="annot">'+fmtDate(p.day)+(currentSource==='x'?' <span class="dot">·</span> X archive':'')+(isHot?' <span class="dot">·</span> flare':'')+'</span><h3></h3><p></p>'+(isHot?'<div class="hotnote">HOT DAY · drifted past safe orbit · operator note: worth a second pass with a human aboard</div>':'');
       a.querySelector('h3').textContent=title; a.querySelector('p').textContent=summary;
       entriesEl.appendChild(a);
     });
