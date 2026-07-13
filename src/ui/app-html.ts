@@ -299,6 +299,7 @@ const atlasBody = `
     if(hay.includes('substack import')||hay.includes('import substack post')) return 'substack';
     return 'other';
   }
+  function short(v,n){v=String(v||'');return v.length>n?v.slice(0,n-1)+'…':v;}
   function updateSourceTabs(pages){
     const counts={x:0,substack:0,other:0};
     pages.forEach(p=>{counts[sourceForPage(p)]++;});
