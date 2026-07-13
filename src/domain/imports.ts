@@ -22,6 +22,8 @@ export async function fetchImportCandidates(source: ImportSource, limit = 50): P
       return fetchYouTubeFeedCandidates(source, limit);
     case 'x_archive_json':
       return (source.seedItems ?? []).slice(0, limit);
+    case 'diary_backfill':
+      return (source.seedItems ?? []).slice(0, limit);
     default:
       return [];
   }

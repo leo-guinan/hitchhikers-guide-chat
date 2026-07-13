@@ -56,7 +56,7 @@ export const FutureAnalysisRequestSchema = z.object({
   contact: z.string().optional(),
 });
 
-export const ImportSourceKindSchema = z.enum(['rss', 'substack', 'ghost', 'generic_url', 'youtube_feed', 'x_archive_json']);
+export const ImportSourceKindSchema = z.enum(['rss', 'substack', 'ghost', 'generic_url', 'youtube_feed', 'x_archive_json', 'diary_backfill']);
 
 export const ImportSourceCreateSchema = z.object({
   kind: ImportSourceKindSchema,

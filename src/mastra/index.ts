@@ -24,6 +24,7 @@ import {
   createContextRequest,
   createFutureAnalysisRequest,
   createImportSource,
+  ensureOwnerAccountBackfill,
   getDiaryPage,
   getSessionAccount,
   initStore,
@@ -102,6 +103,7 @@ export const mastra = new Mastra({
           const body = parsed;
           const { account, session } = await verifyEmailCode(body.email, body.code);
           const paidAccount = freeAccessEmails.has(account.email) ? await markAccountPaid(account.email) : account;
+          await ensureOwnerAccountBackfill(paidAccount);
           return c.json({ ok: true, token: session.token, account: publicAccount(paidAccount) });
         },
       }),
@@ -110,6 +112,7 @@ export const mastra = new Mastra({
         requiresAuth: false,
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
+          if (account) await ensureOwnerAccountBackfill(account);
           return c.json({ account: account ? publicAccount(account) : null });
         },
       }),
@@ -152,7 +155,7 @@ export const mastra = new Mastra({
           const parsed = parseValue(DiarySearchSchema, { query: c.req.query('query') });
           if (parsed instanceof Response) return parsed;
           const query = parsed.query ?? '';
-          return c.json({ pages: await searchDiaryPages(query) });
+          return c.json({ pages: await searchDiaryPages(query, account.id) });
         },
       }),
       registerApiRoute('/diary/heatmap', {
@@ -164,7 +167,7 @@ export const mastra = new Mastra({
           if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
           const requestedWeeks = Number(c.req.query('weeks') ?? 53);
           const weeks = Number.isFinite(requestedWeeks) ? Math.max(1, Math.min(104, requestedWeeks)) : 53;
-          return c.json({ heatmap: buildDiaryHeatmap(await searchDiaryPages(''), { weeks }) });
+          return c.json({ heatmap: buildDiaryHeatmap(await searchDiaryPages('', account.id), { weeks }) });
         },
       }),
       registerApiRoute('/diary/:day', {

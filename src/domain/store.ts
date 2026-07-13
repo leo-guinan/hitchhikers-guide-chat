@@ -35,6 +35,14 @@ const importSourceDir = path.join(dataDir, 'imports', 'sources');
 const importItemDir = path.join(dataDir, 'imports', 'items');
 const requestLog = path.join(dataDir, 'context-requests.jsonl');
 const futureLog = path.join(dataDir, 'future-analysis.jsonl');
+const defaultOwnerEmails = ['leo@ideanexusventures.com'];
+
+export type OwnerBackfillSummary = {
+  owner: boolean;
+  claimedDiaryPages: number;
+  backfilledImportItems: number;
+  sourceId?: string;
+};
 
 export async function initStore(): Promise<void> {
   await mkdir(requestDir, { recursive: true });
@@ -180,15 +188,71 @@ export async function saveDiaryEntry(day: string, sessionId: string, entry: Diar
   return next;
 }
 
-export async function searchDiaryPages(query = ''): Promise<DiaryPage[]> {
+export async function searchDiaryPages(query = '', accountId?: string): Promise<DiaryPage[]> {
   await initStore();
   const files = await readdir(diaryDir).catch(() => [] as string[]);
   const pages = await Promise.all(files.filter((file) => file.endsWith('.json')).map(async (file) => JSON.parse(await readFile(path.join(diaryDir, file), 'utf8')) as DiaryPage));
   const q = query.trim().toLowerCase();
+  const accountPages = accountId ? pages.filter((page) => page.sessionId === accountId) : pages;
   const filtered = q
-    ? pages.filter((page) => diarySearchText(page).includes(q))
-    : pages;
+    ? accountPages.filter((page) => diarySearchText(page).includes(q))
+    : accountPages;
   return filtered.sort((a, b) => b.day.localeCompare(a.day));
+}
+
+export async function ensureOwnerAccountBackfill(account: Account): Promise<OwnerBackfillSummary> {
+  await initStore();
+  if (!isOwnerAccount(account)) return { owner: false, claimedDiaryPages: 0, backfilledImportItems: 0 };
+
+  const files = await readdir(diaryDir).catch(() => [] as string[]);
+  const pages = await Promise.all(files.filter((file) => file.endsWith('.json')).map(async (file) => JSON.parse(await readFile(path.join(diaryDir, file), 'utf8')) as DiaryPage));
+  let claimedDiaryPages = 0;
+  for (const page of pages) {
+    if (page.sessionId !== account.id && shouldClaimLegacySession(page.sessionId)) {
+      page.sessionId = account.id;
+      page.updatedAt = new Date().toISOString();
+      await saveDiaryPage(page);
+      claimedDiaryPages += 1;
+    }
+  }
+
+  const sourceId = `src_${hash(`${account.id}|diary_backfill|Account diary backfill`).slice(0, 12)}`;
+  const now = new Date().toISOString();
+  const source: ImportSource = {
+    id: sourceId,
+    accountId: account.id,
+    kind: 'diary_backfill',
+    label: 'Account diary backfill',
+    createdAt: now,
+    updatedAt: now,
+  };
+  let backfilledImportItems = 0;
+  for (const page of pages) {
+    if (page.sessionId !== account.id || !page.entry) continue;
+    const itemId = `imp_${hash(`${account.id}|${sourceId}|${page.day}|${page.entry.id}`).slice(0, 16)}`;
+    if (await jsonFileExists(importItemPath(account.id, itemId))) continue;
+    const text = diaryEntryImportText(page);
+    const item: ImportedItem = {
+      id: itemId,
+      accountId: account.id,
+      sourceId,
+      sourceKind: 'diary_backfill',
+      sourceLabel: source.label,
+      externalId: `diary:${page.day}:${page.entry.id}`,
+      title: page.entry.title,
+      text,
+      createdAt: page.entry.createdAt,
+      importedAt: now,
+      day: page.day,
+      wordCount: countWords(text),
+    };
+    await writeFile(importItemPath(account.id, item.id), JSON.stringify(item, null, 2));
+    backfilledImportItems += 1;
+  }
+  source.lastRunAt = now;
+  source.lastRun = { imported: backfilledImportItems, skipped: pages.filter((page) => page.sessionId === account.id && page.entry).length - backfilledImportItems, failed: 0, message: 'Mirrored account-owned diary entries into the imported-artifact ledger.' };
+  await writeFile(importSourcePath(account.id, sourceId), JSON.stringify(source, null, 2));
+  return { owner: true, claimedDiaryPages, backfilledImportItems, sourceId };
 }
 
 export async function createFutureAnalysisRequest(input: FutureAnalysisRequestInput): Promise<FutureAnalysisRequest> {
@@ -344,6 +408,44 @@ function diarySearchText(page: DiaryPage): string {
 
 function importedItemSearchText(item: ImportedItem): string {
   return [item.title, item.text, item.url, item.sourceLabel, item.sourceKind, item.day].filter(Boolean).join('\n').toLowerCase();
+}
+
+function isOwnerAccount(account: Account): boolean {
+  const configured = (process.env.GUIDE_OWNER_EMAILS ?? '').split(',').map((email) => email.trim().toLowerCase()).filter(Boolean);
+  const ownerEmails = new Set([...defaultOwnerEmails, ...configured]);
+  return ownerEmails.has(account.email.toLowerCase());
+}
+
+function shouldClaimLegacySession(sessionId: string | undefined): boolean {
+  const id = sessionId ?? '';
+  if (!id || id === 'anonymous' || id.startsWith('smoke-')) return true;
+  const configured = (process.env.GUIDE_LEGACY_ACCOUNT_IDS ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+  return configured.includes(id);
+}
+
+async function jsonFileExists(file: string): Promise<boolean> {
+  try {
+    await readFile(file, 'utf8');
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+function diaryEntryImportText(page: DiaryPage): string {
+  const entry = page.entry;
+  if (!entry) return '';
+  return [
+    entry.summary,
+    entry.keyQuestions.length ? `Key questions:\n${entry.keyQuestions.map((item) => `- ${item}`).join('\n')}` : '',
+    entry.openLoops.length ? `Open loops:\n${entry.openLoops.map((item) => `- ${item}`).join('\n')}` : '',
+    entry.humanContextNeeded.length ? `Human context needed:\n${entry.humanContextNeeded.map((item) => `- ${item}`).join('\n')}` : '',
+  ].filter(Boolean).join('\n\n').slice(0, 120_000);
+}
+
+function countWords(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
 }
 
 function hash(value: string): string {
