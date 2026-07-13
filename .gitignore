@@ -13,6 +13,7 @@ data/auth-codes/*.json
 data/sessions/*.json
 data/imports/sources/*.json
 data/imports/items/*.json
+data/backloads/*.json
 data/ai-conversation-diary/
 data/substack-diary/
 deploy-receipts/*.json
