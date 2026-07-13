@@ -294,17 +294,19 @@ const atlasBody = `
   }
   function monthName(ym){return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(ym.slice(5,7))-1]||ym;}
   let currentPages=[]; let currentSource='all';
-  function sourceForPage(p){
-    const hay=[p.entry?.title,p.entry?.summary,...(p.turns||[]).map(t=>t.content)].filter(Boolean).join('\\n').toLowerCase();
-    if(hay.includes('x archive')||hay.includes('backfilled x archive')) return 'x';
-    if(hay.includes('conversation heat analysis (openai')||hay.includes('conversation heat analysis (anthropic')||hay.includes('privacy-conscious openai')||hay.includes('privacy-conscious anthropic')) return 'ai';
-    if(hay.includes('substack import')||hay.includes('import substack post')) return 'substack';
-    return 'other';
+  function sourceText(p){return [p.entry?.title,p.entry?.summary,...(p.turns||[]).map(t=>t.content)].filter(Boolean).join('\\n').toLowerCase();}
+  function pageHasSource(p,source){
+    const hay=sourceText(p);
+    if(source==='x') return hay.includes('x archive')||hay.includes('backfilled x archive');
+    if(source==='ai') return hay.includes('conversation heat analysis (openai')||hay.includes('conversation heat analysis (anthropic')||hay.includes('privacy-conscious openai')||hay.includes('privacy-conscious anthropic');
+    if(source==='substack') return hay.includes('substack import')||hay.includes('import substack post');
+    if(source==='other') return !pageHasSource(p,'x')&&!pageHasSource(p,'ai')&&!pageHasSource(p,'substack');
+    return true;
   }
   function short(v,n){v=String(v||'');return v.length>n?v.slice(0,n-1)+'…':v;}
   function updateSourceTabs(pages){
     const counts={x:0,ai:0,substack:0,other:0};
-    pages.forEach(p=>{counts[sourceForPage(p)]++;});
+    pages.forEach(p=>{ if(pageHasSource(p,'x')) counts.x++; if(pageHasSource(p,'ai')) counts.ai++; if(pageHasSource(p,'substack')) counts.substack++; if(pageHasSource(p,'other')) counts.other++; });
     $('atlasXCount').textContent=counts.x;
     $('atlasAiCount').textContent=counts.ai;
     $('atlasSubstackCount').textContent=counts.substack;
@@ -319,7 +321,7 @@ const atlasBody = `
   }
   function renderPages(pages){
     entriesEl.innerHTML='';
-    const visible=currentSource==='all'?pages:pages.filter(p=>sourceForPage(p)===currentSource);
+    const visible=currentSource==='all'?pages:pages.filter(p=>pageHasSource(p,currentSource));
     updateSourceTabs(pages);
     const total=pages.length; let flares=0;
     if(!visible.length){ entriesEl.innerHTML='<p class="annot dim">No Atlas entries match this source/search yet.</p>'; }
