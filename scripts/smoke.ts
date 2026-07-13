@@ -4,7 +4,7 @@ import { appendDiaryTurn, createContextRequest, createFutureAnalysisRequest, get
 
 async function main() {
   const sessionId = `smoke-${Date.now()}`;
-  const day = '2099-01-01';
+  const day = '2098-01-01';
   const answer = await answerChat(sessionId, 'What is the latest context from my client?', [], day);
   if (!answer.needsHumanContext) throw new Error('expected context boundary');
   if (pricingPlan.priceUsd !== 42) throw new Error('wrong price');
