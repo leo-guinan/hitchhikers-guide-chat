@@ -268,6 +268,10 @@ const extraCss = `
 .heatmap-shapes{margin-left:auto}
 .starline{position:relative;margin:10px 0 6px}
 .starline svg{width:100%;height:auto;display:block}
+.source-tabs{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 4px}
+.source-tabs .btn{width:auto;padding:9px 13px;font-size:10px;letter-spacing:.16em}
+.source-tabs .btn.active{border-color:var(--gold);color:var(--gold);background:rgba(212,169,78,.08)}
+.source-tabs span{color:var(--ink);margin-left:4px}
 .entries{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:22px;margin-top:26px}
 .entry{background:var(--void-2);border:1px solid var(--gold-ghost);border-radius:12px;padding:22px;text-decoration:none;color:var(--ink);transition:transform .18s,border-color .18s;position:relative}
 .entry:hover{transform:translateY(-3px);border-color:var(--gold-faint)}

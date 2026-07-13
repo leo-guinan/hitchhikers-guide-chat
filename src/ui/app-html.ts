@@ -244,6 +244,12 @@ const atlasBody = `
       <g id="waypoints"></g>
     </svg>
   </div>
+  <div class="source-tabs" id="atlasSourceTabs" aria-label="Atlas source filter">
+    <button type="button" class="btn ghost active" data-source="all">All</button>
+    <button type="button" class="btn ghost" data-source="x">X archive <span id="atlasXCount">0</span></button>
+    <button type="button" class="btn ghost" data-source="substack">Substack <span id="atlasSubstackCount">0</span></button>
+    <button type="button" class="btn ghost" data-source="other">Other <span id="atlasOtherCount">0</span></button>
+  </div>
   <div class="entries" id="entries"></div>
   <form class="searchrow" id="searchForm">
     <input type="text" id="searchDiary" placeholder="Search the diary — a word, a date, a hunch">
@@ -286,13 +292,28 @@ const atlasBody = `
     meta.innerHTML=h.totals.activeDays+' active days <span class="dot">·</span> '+h.totals.turns+' turns <span class="dot">·</span> '+h.totals.flares+' flares';
   }
   function monthName(ym){return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(ym.slice(5,7))-1]||ym;}
-  async function load(q){
+  let currentPages=[]; let currentSource='all';
+  function sourceForPage(p){
+    const hay=[p.entry?.title,p.entry?.summary,...(p.turns||[]).map(t=>t.content)].filter(Boolean).join('\n').toLowerCase();
+    if(hay.includes('x archive')||hay.includes('backfilled x archive')) return 'x';
+    if(hay.includes('substack import')||hay.includes('import substack post')) return 'substack';
+    return 'other';
+  }
+  function updateSourceTabs(pages){
+    const counts={x:0,substack:0,other:0};
+    pages.forEach(p=>{counts[sourceForPage(p)]++;});
+    $('atlasXCount').textContent=counts.x;
+    $('atlasSubstackCount').textContent=counts.substack;
+    $('atlasOtherCount').textContent=counts.other;
+    $('atlasSourceTabs').querySelectorAll('button').forEach(btn=>btn.classList.toggle('active',btn.dataset.source===currentSource));
+  }
+  function renderPages(pages){
     entriesEl.innerHTML='';
-    let pages=[];
-    try{ const r=await api('/diary'+(q?'?query='+encodeURIComponent(q):''),{method:'GET'}); pages=r.pages; }
-    catch(e){ entriesEl.innerHTML='<p class="annot ember">Search needs a paid account. <a href="/enter">Open the diary</a>.</p>'; return; }
+    const visible=currentSource==='all'?pages:pages.filter(p=>sourceForPage(p)===currentSource);
+    updateSourceTabs(pages);
     const total=pages.length; let flares=0;
-    pages.forEach(p=>{
+    if(!visible.length){ entriesEl.innerHTML='<p class="annot dim">No Atlas entries match this source/search yet.</p>'; }
+    visible.forEach(p=>{
       const e=p.entry;
       const isHot=!!(p.contextRequests&&p.contextRequests.length)|| (e&&/flare|hot|drift/i.test(e.summary||''));
       if(isHot) flares++;
@@ -303,10 +324,16 @@ const atlasBody = `
       a.querySelector('h3').textContent=title; a.querySelector('p').textContent=summary;
       entriesEl.appendChild(a);
     });
-    metaEl.innerHTML=total+' entries charted <span class="dot">·</span> '+flares+' flares';
+    metaEl.innerHTML=visible.length+' shown <span class="dot">·</span> '+total+' charted <span class="dot">·</span> '+flares+' flares';
+  }
+  async function load(q){
+    try{ const r=await api('/diary'+(q?'?query='+encodeURIComponent(q):''),{method:'GET'}); currentPages=r.pages; }
+    catch(e){ entriesEl.innerHTML='<p class="annot ember">Search needs a paid account. <a href="/enter">Open the diary</a>.</p>'; return; }
+    renderPages(currentPages);
   }
   await loadHeatmap();
   await load('');
+  $('atlasSourceTabs').querySelectorAll('button').forEach(btn=>btn.addEventListener('click',function(){currentSource=btn.dataset.source||'all'; renderPages(currentPages);}));
   $('searchForm').addEventListener('submit',async e=>{ e.preventDefault(); const q=$('searchDiary').value.trim(); await load(q); });
 })();
 </script>`;
