@@ -216,6 +216,26 @@ const atlasBody = `
     Every compressed day becomes a waypoint on the line. <span style="color:#e8a48d">Ember flares</span> mark
     hot days — pages where the conversation drifted a bit far from the safe orbit, worth revisiting.
   </p>
+  <section class="heatmap-panel" aria-labelledby="heatmapTitle">
+    <div class="heatmap-head">
+      <div>
+        <span class="annot">Log shape calendar <span class="dot">·</span> one square per day</span>
+        <h3 id="heatmapTitle">The shape of the log over time.</h3>
+      </div>
+      <span class="annot dim" id="heatmapMeta">— active days <span class="dot">·</span> — turns</span>
+    </div>
+    <div class="heatmap-wrap" role="img" aria-label="Calendar heat map of diary activity">
+      <div class="heatmap-months" id="heatmapMonths"></div>
+      <div class="heatmap-axis" aria-hidden="true"><span>Mon</span><span>Wed</span><span>Fri</span></div>
+      <div class="heatmap-grid" id="heatmapGrid"></div>
+    </div>
+    <div class="heatmap-foot">
+      <span class="annot dim">less</span>
+      <span class="heatkey l0"></span><span class="heatkey l1"></span><span class="heatkey l2"></span><span class="heatkey l3"></span><span class="heatkey l4"></span>
+      <span class="annot dim">more</span>
+      <span class="annot dim heatmap-shapes">shape: blank · note · conversation · import · analysis · mixed</span>
+    </div>
+  </section>
   <div class="starline" aria-hidden="true">
     <svg viewBox="0 0 1180 150">
       <path d="M20 118 C 220 96, 420 122, 600 92 C 780 62, 960 84, 1120 46" fill="none" stroke="#d4a94e" stroke-opacity=".5" stroke-dasharray="1 8" stroke-width="1.5" stroke-linecap="round"/>
@@ -237,6 +257,35 @@ const atlasBody = `
   await refreshMe();
   if(!account||!account.paid){ location.href='/enter'; return; }
   const entriesEl=$('entries'); const metaEl=$('atlasMeta');
+  async function loadHeatmap(){
+    try{
+      const r=await api('/diary/heatmap?weeks=53',{method:'GET'});
+      renderHeatmap(r.heatmap);
+    }catch(e){
+      $('heatmapGrid').innerHTML='<p class="annot ember">Heatmap unavailable: '+e.message+'</p>';
+    }
+  }
+  function renderHeatmap(h){
+    const grid=$('heatmapGrid'); const months=$('heatmapMonths'); const meta=$('heatmapMeta');
+    grid.innerHTML=''; months.innerHTML='';
+    const cells=h.cells||[];
+    const byMonth=[]; let last='';
+    cells.forEach(function(c,i){
+      const month=c.day.slice(0,7);
+      if(month!==last){byMonth.push({month:month,week:Math.floor(i/7)}); last=month;}
+      const d=document.createElement('button');
+      d.type='button'; d.className='heatcell l'+c.level+' shape-'+c.shape;
+      d.title=c.day+' · '+c.shape+' · heat '+c.heatScore+' · '+c.turnCount+' turns · '+c.charCount+' chars · '+c.questionCount+' questions'+(c.entryCompressed?' · compressed':'');
+      d.setAttribute('aria-label',d.title);
+      d.onclick=function(){ $('searchDiary').value=c.day; load(c.day); };
+      grid.appendChild(d);
+    });
+    byMonth.forEach(function(m){
+      const s=document.createElement('span'); s.textContent=monthName(m.month); s.style.gridColumn=(m.week+1)+' / span 4'; months.appendChild(s);
+    });
+    meta.innerHTML=h.totals.activeDays+' active days <span class="dot">·</span> '+h.totals.turns+' turns <span class="dot">·</span> '+h.totals.flares+' flares';
+  }
+  function monthName(ym){return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(ym.slice(5,7))-1]||ym;}
   async function load(q){
     entriesEl.innerHTML='';
     let pages=[];
@@ -256,6 +305,7 @@ const atlasBody = `
     });
     metaEl.innerHTML=total+' entries charted <span class="dot">·</span> '+flares+' flares';
   }
+  await loadHeatmap();
   await load('');
   $('searchForm').addEventListener('submit',async e=>{ e.preventDefault(); const q=$('searchDiary').value.trim(); await load(q); });
 })();

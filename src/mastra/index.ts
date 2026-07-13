@@ -17,6 +17,7 @@ import {
   type Account,
 } from '../domain/schema';
 import { answerChat, pricingPlan, summarizeDiaryPage } from '../domain/engine';
+import { buildDiaryHeatmap } from '../domain/heatmap';
 import { createCheckoutSession, stripePriceId } from '../domain/payments';
 import {
   appendDiaryTurn,
@@ -152,6 +153,18 @@ export const mastra = new Mastra({
           if (parsed instanceof Response) return parsed;
           const query = parsed.query ?? '';
           return c.json({ pages: await searchDiaryPages(query) });
+        },
+      }),
+      registerApiRoute('/diary/heatmap', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async (c) => {
+          const account = await accountFromRequest(c.req.raw);
+          if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
+          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          const requestedWeeks = Number(c.req.query('weeks') ?? 53);
+          const weeks = Number.isFinite(requestedWeeks) ? Math.max(1, Math.min(104, requestedWeeks)) : 53;
+          return c.json({ heatmap: buildDiaryHeatmap(await searchDiaryPages(''), { weeks }) });
         },
       }),
       registerApiRoute('/diary/:day', {
