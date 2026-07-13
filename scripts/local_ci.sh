@@ -16,6 +16,7 @@ npm run smoke
 echo "== local_ci: rendered HTML contract =="
 node --import tsx - <<'JS'
 import { appHtml, enterHtml, appPageHtml, searchHtml, importsHtml } from './src/ui/app-html.ts';
+import vm from 'node:vm';
 
 const pages = { appHtml, enterHtml, appPageHtml, searchHtml, importsHtml };
 const requiredInEveryPage = [
@@ -45,6 +46,8 @@ for (const [name, html] of Object.entries({ appPageHtml, searchHtml, importsHtml
   if (refreshIndex < 0 || firstCallIndex < 0 || refreshIndex > firstCallIndex) {
     throw new Error(`${name} calls refreshMe before the shared helper is defined`);
   }
+  const scripts = Array.from(html.matchAll(/<script>([\s\S]*?)<\/script>/g)).map((match) => match[1]);
+  for (const script of scripts) new vm.Script(script, { filename: `${name}.inline.js` });
 }
 console.log('LOCAL_HTML_CONTRACT_OK');
 JS

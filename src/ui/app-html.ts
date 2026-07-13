@@ -294,7 +294,7 @@ const atlasBody = `
   function monthName(ym){return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(ym.slice(5,7))-1]||ym;}
   let currentPages=[]; let currentSource='all';
   function sourceForPage(p){
-    const hay=[p.entry?.title,p.entry?.summary,...(p.turns||[]).map(t=>t.content)].filter(Boolean).join('\n').toLowerCase();
+    const hay=[p.entry?.title,p.entry?.summary,...(p.turns||[]).map(t=>t.content)].filter(Boolean).join('\\n').toLowerCase();
     if(hay.includes('x archive')||hay.includes('backfilled x archive')) return 'x';
     if(hay.includes('substack import')||hay.includes('import substack post')) return 'substack';
     return 'other';
