@@ -69,7 +69,25 @@ describe('guide engine', () => {
     expect(answer.answer).not.toContain('Present reflection:');
     expect(answer.answer).not.toContain('Future question:');
     expect(answer.answer).not.toMatch(/How do you know.*How do you know/);
+    expect(answer.answer).not.toMatch(/\d+ user turns?/);
+    expect(answer.answer).not.toContain('No explicit user question captured');
   });
+
+  it('hides mechanical compressed-page summaries from the chat compass', () => {
+    const page = priorPage();
+    const compass = buildDiaryCompass('what should this connect to?', '2026-07-14', [{
+      ...page,
+      entry: {
+        ...page.entry,
+        summary: '2026-07-13: 1 user turns and 1 assistant turns. No explicit user question captured. No human-context request was surfaced in the chat.',
+      },
+    }]);
+
+    expect(compass).toContain('Past: [Trust substrate positioning](/diary/2026-07-11)');
+    expect(compass).not.toMatch(/\d+ user turns?/);
+    expect(compass).not.toContain('No explicit user question captured');
+  });
+
 });
 
 function priorPage() {

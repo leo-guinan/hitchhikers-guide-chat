@@ -197,6 +197,9 @@ function cleanPastSummary(summary: string): string {
   });
   const cleaned = unique.join(' ')
     .replace(/^The Alignment Test:\s*\d{4}-\d{2}-\d{2}\s+Substack import:\s*/i, '')
+    .replace(/^\d{4}-\d{2}-\d{2}:\s*\d+ user turns? and \d+ assistant turns?\.\s*/i, '')
+    .replace(/No explicit user question captured\.\s*/gi, '')
+    .replace(/No human-context request was surfaced in the chat\.\s*/gi, '')
     .replace(/The Alignment Test\s+(?=How do you know)/gi, '')
     .replace(/(How do you know if your AI system is aligned\?\s*){2,}/gi, 'How do you know if your AI system is aligned? ')
     .trim();
