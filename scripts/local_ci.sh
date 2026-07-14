@@ -51,6 +51,10 @@ for (const [name, html] of Object.entries({ appPageHtml, searchHtml, importsHtml
 }
 if (!hotspotsHtml.includes('How a private AI furnace became a public thesis.')) throw new Error('hotspots page missing headline');
 if (!hotspotsHtml.includes('Problematic pattern to watch')) throw new Error('hotspots page missing risk analysis');
+if (!appPageHtml.includes('renderDiaryBranches')) throw new Error('app page missing diary branch renderer');
+for (const branch of ["'past'", "'present'", "'future'", "'data-branch'"]) {
+  if (!appPageHtml.includes(branch)) throw new Error(`app page missing diary branch marker ${branch}`);
+}
 console.log('LOCAL_HTML_CONTRACT_OK');
 JS
 

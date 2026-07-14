@@ -242,6 +242,15 @@ const extraCss = `
 .msg.you{align-self:flex-end;background:rgba(107,85,144,.16);border:1px solid var(--plum-dim)}
 .msg .who{font-family:var(--mono);font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold);display:block;margin-bottom:6px}
 .msg.you .who{color:var(--plum)}
+.diary-branches{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:16px;padding-top:14px;border-top:1px dashed var(--gold-ghost)}
+.diary-branch{appearance:none;text-align:left;border:1px solid var(--gold-ghost);border-radius:10px;background:rgba(6,4,16,.45);color:var(--ink);padding:12px;cursor:pointer;min-height:86px;display:flex;flex-direction:column;gap:7px;transition:transform .16s,border-color .16s,background .16s}
+.diary-branch:hover{transform:translateY(-2px);border-color:var(--gold-faint);background:rgba(212,169,78,.06)}
+.diary-branch.present{border-color:rgba(107,85,144,.38)}
+.diary-branch.future{border-color:rgba(226,84,44,.34)}
+.branch-label{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold)}
+.diary-branch.present .branch-label{color:var(--plum)}
+.diary-branch.future .branch-label{color:#e8a48d}
+.branch-body{font-size:13px;line-height:1.35;color:var(--ink-dim);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .composer{display:flex;gap:12px;padding-top:18px;border-top:1px dashed var(--gold-ghost)}
 .composer textarea{flex:1;margin:0;min-height:54px}
 .composer .btn{width:auto;padding:0 26px}
@@ -417,6 +426,8 @@ const extraCss = `
   .chatlog{max-height:none;min-height:260px;padding:18px 0;gap:12px}
   .msg{max-width:100%;font-size:14.5px;padding:12px 14px}
   .msg .who{font-size:9px;letter-spacing:.18em}
+  .diary-branches{grid-template-columns:1fr;gap:8px;margin-top:12px;padding-top:12px}
+  .diary-branch{min-height:0;padding:11px}
   .composer{flex-direction:column;gap:10px;padding-top:14px}
   .composer textarea{min-height:96px;width:100%}
   .composer .btn{width:100%;padding:12px 13px}

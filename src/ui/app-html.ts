@@ -200,6 +200,11 @@ const appBody = `
     const n=parseInt($('turnCount').textContent||'0',10)+1; $('turnCount').textContent=n;
   }
   function appendRichText(node,text){
+    const split=text.split('\\n\\nFrom the diary:\\n');
+    appendInlineLinks(node,split[0]);
+    if(split.length>1) renderDiaryBranches(node,split.slice(1).join('\\n\\nFrom the diary:\\n'));
+  }
+  function appendInlineLinks(node,text){
     const re=/\\[([^\\]]+)\\]\\((\\/[^\\s)]+)\\)/g; let last=0; let m;
     while((m=re.exec(text))){
       if(m.index>last) node.appendChild(document.createTextNode(text.slice(last,m.index)));
@@ -207,6 +212,40 @@ const appBody = `
       last=re.lastIndex;
     }
     if(last<text.length) node.appendChild(document.createTextNode(text.slice(last)));
+  }
+  function renderDiaryBranches(node,text){
+    const lines=text.split('\\n').map(x=>x.trim()).filter(Boolean);
+    const branches=['past','present','future'].map(kind=>branchFromLines(kind,lines));
+    const row=document.createElement('div'); row.className='diary-branches'; row.setAttribute('aria-label','Diary branches');
+    branches.forEach(branch=>{
+      const btn=document.createElement('button'); btn.type='button'; btn.className='diary-branch '+branch.kind; btn.setAttribute('data-branch',branch.kind);
+      const label=document.createElement('span'); label.className='branch-label'; label.textContent=branch.label;
+      const body=document.createElement('span'); body.className='branch-body'; body.textContent=branch.title||branch.text;
+      btn.append(label,body);
+      btn.onclick=()=>takeDiaryBranch(branch);
+      row.appendChild(btn);
+    });
+    node.appendChild(row);
+  }
+  function branchFromLines(kind,lines){
+    const prefix=kind==='past'?'Past:':kind==='present'?'Now:':'Future:';
+    const raw=(lines.find(line=>line.startsWith(prefix))||prefix).slice(prefix.length).trim();
+    const link=parseDiaryLink(raw);
+    return {kind,label:kind==='present'?'Present':kind[0].toUpperCase()+kind.slice(1),text:raw,title:link?link.title:raw,href:link?link.href:null,detail:link?link.detail:''};
+  }
+  function parseDiaryLink(raw){
+    if(!raw.startsWith('[')) return null;
+    const mid=raw.indexOf(']('); if(mid<0) return null;
+    const end=raw.indexOf(')',mid+2); if(end<0) return null;
+    const href=raw.slice(mid+2,end); if(!href.startsWith('/')) return null;
+    const rest=raw.slice(end+1).trim();
+    return {title:raw.slice(1,mid),href,detail:rest.startsWith('—')?rest.slice(1).trim():rest};
+  }
+  function takeDiaryBranch(branch){
+    if(branch.href){ location.href=branch.href; return; }
+    const box=$('ask'); if(!box) return;
+    const prompt=branch.kind==='present'?'Say more about this present thread: ':branch.kind==='future'?'Help me explore this future question: ':'Follow this past thread: ';
+    box.value=prompt+(branch.text||branch.title); box.focus();
   }
 })();
 </script>`;
