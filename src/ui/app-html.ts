@@ -121,14 +121,14 @@ const enterBody = `
 
       <section class="boarding-gate kipper" id="gateKipper" aria-labelledby="kipperTitle">
         <h2 class="annot" id="kipperTitle">Gate III <span class="dot">·</span> Kipper founder pass</h2>
-        <p class="sub">Have a Kipper/X identity? <strong>Enter free</strong>. We start tracking query receipts so Quai can later power the OpenRouter token bridge.</p>
+        <p class="sub">Have a Kipper/X identity? <strong>Claim early access</strong>. This is not verified against the Kipper extension yet; it starts query receipts so Quai can later power the OpenRouter token bridge.</p>
         <label class="annot dim" for="kipperHandle" hidden>X handle</label>
         <input type="text" id="kipperHandle" placeholder="@yourhandle" autocomplete="username">
         <label class="annot dim" for="quaiAddress" hidden>Quai address</label>
         <input type="text" id="quaiAddress" placeholder="Optional Quai address for future settlement">
-        <button class="btn solid" id="kipperBtn">Claim free Kipper access →</button>
-        <p class="note" id="kipperStatus" style="margin-top:8px">Local Kipper identity receipt first. Server-side X/Kipper verification later.</p>
-        <p class="fine">No transaction. No rebate settlement yet. Just access and query receipts.</p>
+        <button class="btn solid" id="kipperBtn">Claim unverified Kipper founder access →</button>
+        <p class="note" id="kipperStatus" style="margin-top:8px">Unverified claim first. Kipper/X verification needs an API, OAuth, or signed challenge.</p>
+        <p class="fine">No extension check. No transaction. No rebate settlement yet. Access now; verification before rewards.</p>
       </section>
     </div>
 
@@ -143,14 +143,14 @@ const appBody = `
 <div class="grid">
   <main>
     <section class="panel kipper-tour" id="kipperTour" aria-labelledby="kipperTourTitle" hidden>
-      <span class="annot ember">Kipper founder pass <span class="dot">·</span> welcome to the time machine</span>
+      <span class="annot ember">Kipper founder claim <span class="dot">·</span> welcome to the time machine</span>
       <h2 id="kipperTourTitle">You are early enough to bend the rails.</h2>
       <p class="sub">This is the time machine: every query becomes a page, every page can compress into memory, and every useful answer starts producing receipts before the economy exists.</p>
       <ol class="tour-steps">
         <li><strong>Talk to today.</strong> Use the diary like a live cockpit.</li>
         <li><strong>Open the Atlas.</strong> Search old pages when the machine should remember instead of guessing.</li>
         <li><strong>Watch receipts.</strong> Query tokens are measured for the future Quai→OpenRouter bridge.</li>
-        <li><strong>Tell us where it breaks.</strong> Kipper feedback creates a reward-intent receipt for founder treatment later.</li>
+        <li><strong>Tell us where it breaks.</strong> Kipper feedback creates a reward-intent receipt; verified Kipper identity decides settlement later.</li>
       </ol>
       <form class="kipper-feedback" id="kipperFeedback">
         <label class="annot dim" for="kipperTourStep">Where are you in the tour?</label>
@@ -171,7 +171,7 @@ const appBody = `
         </select>
         <textarea id="kipperFeedbackText" placeholder="What confused you, what felt valuable, and what would make this worth sharing on X?"></textarea>
         <button class="btn solid" type="submit">Send feedback &amp; log reward intent</button>
-        <p class="note" id="kipperFeedbackStatus">Rewards are logged as intent receipts until Kipper/Twitter verification and settlement exist.</p>
+        <p class="note" id="kipperFeedbackStatus">Rewards are intent receipts only until Kipper/Twitter verification and settlement exist.</p>
       </form>
     </section>
 
