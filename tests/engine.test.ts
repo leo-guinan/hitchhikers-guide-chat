@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerChat, buildContextPrompt, pricingPlan, summarizeDiaryPage } from '../src/domain/engine';
+import { answerChat, buildContextPrompt, buildDiaryCompass, pricingPlan, summarizeDiaryPage } from '../src/domain/engine';
 
 describe('guide engine', () => {
   it('exposes the single $42/month plan', () => {
@@ -42,5 +42,34 @@ describe('guide engine', () => {
     expect(entry.turnCount).toBe(2);
     expect(entry.keyQuestions[0]).toContain('build next');
     expect(entry.humanContextNeeded.join(' ')).toContain('human context');
+  });
+
+  it('builds a diary compass with past link, present reflection, and future question', () => {
+    const compass = buildDiaryCompass('How should I explain the product?', '2026-07-14', [
+      {
+        day: '2026-07-11',
+        sessionId: 's1',
+        createdAt: '2026-07-11T00:00:00.000Z',
+        updatedAt: '2026-07-11T00:01:00.000Z',
+        entry: {
+          id: 'entry_20260711',
+          day: '2026-07-11',
+          createdAt: '2026-07-11T00:01:00.000Z',
+          updatedAt: '2026-07-11T00:01:00.000Z',
+          title: 'Trust substrate positioning',
+          summary: 'The product should make trust and receipts legible before autonomy.',
+          keyQuestions: ['What proof makes this believable?'],
+          openLoops: ['Find the smallest credible demo.'],
+          humanContextNeeded: [],
+          turnCount: 2,
+          sourceTurnIds: ['t1', 't2'],
+        },
+        turns: [],
+      },
+    ]);
+
+    expect(compass).toContain('Past link: [Trust substrate positioning](/diary/2026-07-11)');
+    expect(compass).toContain('Present reflection:');
+    expect(compass).toContain('Future question:');
   });
 });

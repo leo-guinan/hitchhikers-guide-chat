@@ -49,23 +49,25 @@ export const pricingPlan: PricingPlan = {
   ],
 };
 
-export async function answerChat(sessionId: string, message: string, history: ChatMessage[] = [], day = new Date().toISOString().slice(0, 10)): Promise<ChatAnswer> {
+export async function answerChat(sessionId: string, message: string, history: ChatMessage[] = [], day = new Date().toISOString().slice(0, 10), pastPages: DiaryPage[] = []): Promise<ChatAnswer> {
   const normalized = message.toLowerCase();
   const needsHumanContext = contextBoundaryTerms.some((term) => normalized.includes(term));
   const contextPrompt = buildContextPrompt(message);
+  const diaryCompass = buildDiaryCompass(message, day, pastPages);
 
   try {
     const model = await generateModelAnswer(modelInstructions(contextPrompt, day), message, history);
     if (model) {
+      const answer = appendDiaryCompass(model.text, diaryCompass);
       return {
-        answer: model.text,
+        answer,
         needsHumanContext,
         contextPrompt,
         diary: { day, turnCount: history.length + 2 },
         receipt: {
           sessionId,
           messageChars: message.length,
-          answerChars: model.text.length,
+          answerChars: answer.length,
           mode: 'model',
           model: model.model,
         },
@@ -79,7 +81,7 @@ export async function answerChat(sessionId: string, message: string, history: Ch
   const priorTurns = history.filter((turn) => turn.role !== 'system').slice(-4);
   const continuity = priorTurns.length ? ` I am carrying ${priorTurns.length} turns from today's diary page as working context.` : '';
 
-  const answer = needsHumanContext
+  const coreAnswer = needsHumanContext
     ? [
         'Short answer: I can help, but this crosses the context boundary.',
         buildDirectFrame(message),
@@ -93,6 +95,8 @@ export async function answerChat(sessionId: string, message: string, history: Ch
         continuity.trim(),
       ].filter(Boolean).join(' ');
 
+  const answer = appendDiaryCompass(coreAnswer, diaryCompass);
+
   return {
     answer,
     needsHumanContext,
@@ -105,6 +109,19 @@ export async function answerChat(sessionId: string, message: string, history: Ch
       mode: 'deterministic-fallback',
     },
   };
+}
+
+export function buildDiaryCompass(message: string, day: string, pastPages: DiaryPage[] = []): string {
+  const past = choosePastPage(message, day, pastPages);
+  const pastLine = past?.entry
+    ? `Past link: [${past.entry.title}](/diary/${past.day}) — ${past.entry.summary}`
+    : 'Past link: No compressed prior page is available yet. Compress today, then the machine has something better than vibes.';
+  return [
+    'Diary compass:',
+    pastLine,
+    `Present reflection: ${presentReflection(message)}`,
+    `Future question: ${futureQuestion(message)}`,
+  ].join('\n');
 }
 
 export function summarizeDiaryPage(page: DiaryPage): DiaryEntry {
@@ -155,6 +172,40 @@ export function buildContextPrompt(message: string): string {
   if (lowered.includes('client') || lowered.includes('customer') || lowered.includes('contact')) return 'who the person is, the last interaction, what they asked for, and any promises already made';
   if (lowered.includes('latest') || lowered.includes('today') || lowered.includes('current') || lowered.includes('recent')) return 'current source links, timestamps, and what changed since the older baseline';
   return 'the concrete facts a human can observe that are not already in this chat';
+}
+
+function appendDiaryCompass(answer: string, compass: string): string {
+  return `${answer.trim()}\n\n${compass}`;
+}
+
+function choosePastPage(message: string, day: string, pages: DiaryPage[]): DiaryPage | undefined {
+  const terms = meaningfulTerms(message);
+  return pages
+    .filter((page) => page.day < day && page.entry)
+    .map((page) => ({ page, score: scorePastPage(page, terms) }))
+    .sort((a, b) => b.score - a.score || b.page.day.localeCompare(a.page.day))[0]?.page;
+}
+
+function scorePastPage(page: DiaryPage, terms: string[]): number {
+  const text = [page.entry?.title, page.entry?.summary, ...(page.entry?.keyQuestions ?? []), ...(page.entry?.openLoops ?? [])].join(' ').toLowerCase();
+  return terms.reduce((score, term) => score + (text.includes(term) ? 1 : 0), 0);
+}
+
+function presentReflection(message: string): string {
+  const trimmed = message.trim().replace(/\s+/g, ' ');
+  if (trimmed.endsWith('?')) return 'You are not just asking for an answer; you are choosing which uncertainty deserves a receipt today.';
+  return 'Today’s page is turning an intention into a smaller observable move.';
+}
+
+function futureQuestion(message: string): string {
+  const trimmed = message.trim().replace(/\s+/g, ' ');
+  const topic = trimmed.replace(/[?!.]+$/, '').slice(0, 96);
+  return `When you reread this later, what outcome would prove that “${topic}” moved from idea to artifact?`;
+}
+
+function meaningfulTerms(text: string): string[] {
+  const stop = new Set(['about', 'again', 'should', 'would', 'could', 'there', 'their', 'thing', 'explain', 'product', 'first', 'with', 'from', 'what', 'when', 'where', 'which', 'your', 'this', 'that']);
+  return [...new Set(text.toLowerCase().match(/[a-z0-9]{4,}/g) ?? [])].filter((term) => !stop.has(term)).slice(0, 12);
 }
 
 function extractSentences(text: string, needles: string[]): string[] {

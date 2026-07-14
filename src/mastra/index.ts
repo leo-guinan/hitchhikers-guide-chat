@@ -203,7 +203,8 @@ export const mastra = new Mastra({
           const existingPage = await getDiaryPage(day, account.id);
           await appendDiaryTurn(day, account.id, { role: 'user', content: body.message });
           const history = existingPage.turns.map((turn) => ({ role: turn.role, content: turn.content }));
-          const answer = await answerChat(account.id, body.message, history, day);
+          const pastPages = (await searchDiaryPages('', account.id)).filter((page) => page.day < day).slice(0, 12);
+          const answer = await answerChat(account.id, body.message, history, day, pastPages);
           const updatedPage = await appendDiaryTurn(day, account.id, { role: 'assistant', content: answer.answer });
           const queryReceipt = await recordQueryReceipt({ account, day, messageChars: answer.receipt.messageChars, answerChars: answer.receipt.answerChars, mode: answer.receipt.mode, model: answer.receipt.model });
           return c.json({ ...answer, diary: { day, turnCount: updatedPage.turns.length, entry: updatedPage.entry }, queryReceipt });

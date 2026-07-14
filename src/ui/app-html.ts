@@ -195,9 +195,18 @@ const appBody = `
   function addMsg(cls,who,text){
     const d=document.createElement('div'); d.className='msg '+cls;
     const w=document.createElement('span'); w.className='who'; w.textContent=who; d.appendChild(w);
-    d.appendChild(document.createTextNode(text));
+    appendRichText(d,text);
     $('chatlog').appendChild(d); $('chatlog').scrollTop=$('chatlog').scrollHeight;
     const n=parseInt($('turnCount').textContent||'0',10)+1; $('turnCount').textContent=n;
+  }
+  function appendRichText(node,text){
+    const re=/\\[([^\\]]+)\\]\\((\\/[^\\s)]+)\\)/g; let last=0; let m;
+    while((m=re.exec(text))){
+      if(m.index>last) node.appendChild(document.createTextNode(text.slice(last,m.index)));
+      const a=document.createElement('a'); a.href=m[2]; a.textContent=m[1]; a.className='diary-link'; node.appendChild(a);
+      last=re.lastIndex;
+    }
+    if(last<text.length) node.appendChild(document.createTextNode(text.slice(last)));
   }
 })();
 </script>`;
