@@ -96,7 +96,6 @@ const enterBody = `
         <p class="sub">Sign in with Twitter. One click proves the handle and opens the time machine.</p>
         <button class="btn solid" id="twitterLoginBtn" type="button">Continue with Twitter →</button>
         <p class="note" id="twitterStatus" style="margin-top:8px">OAuth verifies your X handle. Email remains as backup for the original account.</p>
-        <p class="fine">If you sign in as @leo_guinan, the session attaches to Leo's existing Guide account.</p>
       </section>
 
       <details class="boarding-gate backup" id="emailBackup">
@@ -119,6 +118,7 @@ const enterBody = `
     <div class="boarding-backrow">
       <a href="/">← Back to the cover</a>
       <span class="annot dim">mostly harmless <span class="dot">·</span> don't forget your towel</span>
+      <span class="annot dim credit">Created with ❤️ by <a href="https://x.com/leo_guinan" rel="noopener noreferrer" target="_blank">@leo_guinan</a></span>
     </div>
   </div>
 </section>`;
