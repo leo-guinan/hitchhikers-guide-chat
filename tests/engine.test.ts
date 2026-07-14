@@ -86,6 +86,7 @@ describe('guide engine', () => {
     expect(compass).toContain('Past: [Trust substrate positioning](/diary/2026-07-11)');
     expect(compass).not.toMatch(/\d+ user turns?/);
     expect(compass).not.toContain('No explicit user question captured');
+    expect(compass).not.toContain('— \n');
   });
 
 });

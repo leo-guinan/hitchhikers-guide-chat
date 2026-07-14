@@ -103,8 +103,9 @@ export async function answerChat(sessionId: string, message: string, history: Ch
 
 export function buildDiaryCompass(message: string, day: string, pastPages: DiaryPage[] = []): string {
   const past = choosePastPage(message, day, pastPages);
+  const pastSummary = past?.entry ? cleanPastSummary(past.entry.summary) : '';
   const pastLine = past?.entry
-    ? `Past: [${past.entry.title}](/diary/${past.day}) — ${cleanPastSummary(past.entry.summary)}`
+    ? `Past: [${past.entry.title}](/diary/${past.day})${pastSummary ? ` — ${pastSummary}` : ''}`
     : 'Past: no older compressed page yet. Once you compress a day, I can pull a better thread back in.';
   return [
     'From the diary:',
