@@ -46,30 +46,51 @@ describe('guide engine', () => {
 
   it('builds a diary compass with past link, present reflection, and future question', () => {
     const compass = buildDiaryCompass('How should I explain the product?', '2026-07-14', [
-      {
-        day: '2026-07-11',
-        sessionId: 's1',
-        createdAt: '2026-07-11T00:00:00.000Z',
-        updatedAt: '2026-07-11T00:01:00.000Z',
-        entry: {
-          id: 'entry_20260711',
-          day: '2026-07-11',
-          createdAt: '2026-07-11T00:01:00.000Z',
-          updatedAt: '2026-07-11T00:01:00.000Z',
-          title: 'Trust substrate positioning',
-          summary: 'The product should make trust and receipts legible before autonomy.',
-          keyQuestions: ['What proof makes this believable?'],
-          openLoops: ['Find the smallest credible demo.'],
-          humanContextNeeded: [],
-          turnCount: 2,
-          sourceTurnIds: ['t1', 't2'],
-        },
-        turns: [],
-      },
+      priorPage(),
     ]);
 
-    expect(compass).toContain('Past link: [Trust substrate positioning](/diary/2026-07-11)');
-    expect(compass).toContain('Present reflection:');
-    expect(compass).toContain('Future question:');
+    expect(compass).toContain('From the diary:');
+    expect(compass).toContain('Past: [Trust substrate positioning](/diary/2026-07-11)');
+    expect(compass).toContain('Now:');
+    expect(compass).toContain('Future:');
+  });
+
+  it('keeps chat answers conversational instead of exposing receipt boilerplate', async () => {
+    const answer = await answerChat('s1', "what's thermodynamic crypto?", [
+      { role: 'user', content: 'what should we build?' },
+      { role: 'assistant', content: 'Something small.' },
+    ], '2026-07-14', [priorPage()]);
+
+    expect(answer.answer).toContain('From the diary:');
+    expect(answer.answer).toContain('Past: [Trust substrate positioning](/diary/2026-07-11)');
+    expect(answer.answer).not.toContain('This answer belongs to today’s diary page');
+    expect(answer.answer).not.toContain('I am carrying 2 turns');
+    expect(answer.answer).not.toContain('Diary compass:');
+    expect(answer.answer).not.toContain('Present reflection:');
+    expect(answer.answer).not.toContain('Future question:');
+    expect(answer.answer).not.toMatch(/How do you know.*How do you know/);
   });
 });
+
+function priorPage() {
+  return {
+    day: '2026-07-11',
+    sessionId: 's1',
+    createdAt: '2026-07-11T00:00:00.000Z',
+    updatedAt: '2026-07-11T00:01:00.000Z',
+    entry: {
+      id: 'entry_20260711',
+      day: '2026-07-11',
+      createdAt: '2026-07-11T00:01:00.000Z',
+      updatedAt: '2026-07-11T00:01:00.000Z',
+      title: 'Trust substrate positioning',
+      summary: '- The Alignment Test: 2026-07-12 Substack import: How do you know if your AI system is aligned? The Alignment Test How do you know if your AI system is aligned? How do you know if your AI system is aligned?',
+      keyQuestions: ['What proof makes this believable?'],
+      openLoops: ['Find the smallest credible demo.'],
+      humanContextNeeded: [],
+      turnCount: 2,
+      sourceTurnIds: ['t1', 't2'],
+    },
+    turns: [],
+  };
+}

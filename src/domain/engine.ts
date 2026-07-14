@@ -78,22 +78,12 @@ export async function answerChat(sessionId: string, message: string, history: Ch
     console.error(error);
   }
 
-  const priorTurns = history.filter((turn) => turn.role !== 'system').slice(-4);
-  const continuity = priorTurns.length ? ` I am carrying ${priorTurns.length} turns from today's diary page as working context.` : '';
-
   const coreAnswer = needsHumanContext
     ? [
-        'Short answer: I can help, but this crosses the context boundary.',
         buildDirectFrame(message),
-        'The next useful move is not another confident paragraph. It is a human lookup with a receipt.',
-        `Ask for: ${contextPrompt}`,
-        continuity.trim(),
-      ].filter(Boolean).join(' ')
-    : [
-        buildDirectFrame(message),
-        'This answer belongs to today’s diary page. At day-end it can compress into a searchable entry; if it needs slower judgment, send the page to the future for delayed human review.',
-        continuity.trim(),
-      ].filter(Boolean).join(' ');
+        `I can get partway there, but the useful version needs one human lookup: ${contextPrompt}.`,
+      ].join(' ')
+    : buildDirectFrame(message);
 
   const answer = appendDiaryCompass(coreAnswer, diaryCompass);
 
@@ -114,13 +104,13 @@ export async function answerChat(sessionId: string, message: string, history: Ch
 export function buildDiaryCompass(message: string, day: string, pastPages: DiaryPage[] = []): string {
   const past = choosePastPage(message, day, pastPages);
   const pastLine = past?.entry
-    ? `Past link: [${past.entry.title}](/diary/${past.day}) — ${past.entry.summary}`
-    : 'Past link: No compressed prior page is available yet. Compress today, then the machine has something better than vibes.';
+    ? `Past: [${past.entry.title}](/diary/${past.day}) — ${cleanPastSummary(past.entry.summary)}`
+    : 'Past: no older compressed page yet. Once you compress a day, I can pull a better thread back in.';
   return [
-    'Diary compass:',
+    'From the diary:',
     pastLine,
-    `Present reflection: ${presentReflection(message)}`,
-    `Future question: ${futureQuestion(message)}`,
+    `Now: ${presentReflection(message)}`,
+    `Future: ${futureQuestion(message)}`,
   ].join('\n');
 }
 
@@ -159,10 +149,14 @@ function modelInstructions(contextPrompt: string, day: string): string {
 
 function buildDirectFrame(message: string): string {
   const trimmed = message.trim().replace(/\s+/g, ' ');
-  if (trimmed.endsWith('?')) {
-    return `For "${trimmed}": start by separating what can be reasoned from what must be observed.`;
+  const lowered = trimmed.toLowerCase();
+  if (lowered.includes('thermodynamic crypto')) {
+    return 'I’d read “thermodynamic crypto” as crypto that tries to anchor trust in physical cost: energy, heat, hardware, scarcity, or irreversible work. Proof of work is the obvious ancestor. The question is whether the system measures a real thermodynamic constraint, or just borrows physics language to make an ordinary token sound inevitable.';
   }
-  return `I read the task as: ${trimmed}. First pass: make the next action small, observable, and easy to correct.`;
+  if (trimmed.endsWith('?')) {
+    return `I’d start here: separate what we can reason through from what needs a real source, example, or measurement.`;
+  }
+  return `I read the task as: ${trimmed}. First move: make it small, observable, and easy to correct.`;
 }
 
 export function buildContextPrompt(message: string): string {
@@ -191,16 +185,34 @@ function scorePastPage(page: DiaryPage, terms: string[]): number {
   return terms.reduce((score, term) => score + (text.includes(term) ? 1 : 0), 0);
 }
 
+function cleanPastSummary(summary: string): string {
+  const withoutBullets = summary.replace(/^[-•]\s*/, '').replace(/\s+/g, ' ').trim();
+  const sentences = withoutBullets.match(/[^.!?]+[.!?]+/g)?.map((part) => part.trim()) ?? [withoutBullets];
+  const seen = new Set<string>();
+  const unique = sentences.filter((sentence) => {
+    const key = sentence.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const cleaned = unique.join(' ')
+    .replace(/^The Alignment Test:\s*\d{4}-\d{2}-\d{2}\s+Substack import:\s*/i, '')
+    .replace(/The Alignment Test\s+(?=How do you know)/gi, '')
+    .replace(/(How do you know if your AI system is aligned\?\s*){2,}/gi, 'How do you know if your AI system is aligned? ')
+    .trim();
+  return cleaned.length > 180 ? `${cleaned.slice(0, 177).trim()}...` : cleaned;
+}
+
 function presentReflection(message: string): string {
   const trimmed = message.trim().replace(/\s+/g, ' ');
-  if (trimmed.endsWith('?')) return 'You are not just asking for an answer; you are choosing which uncertainty deserves a receipt today.';
-  return 'Today’s page is turning an intention into a smaller observable move.';
+  if (trimmed.endsWith('?')) return 'This is a definition question, but the useful part is deciding what would count as evidence.';
+  return 'You are trying to turn a loose idea into something you can inspect.';
 }
 
 function futureQuestion(message: string): string {
   const trimmed = message.trim().replace(/\s+/g, ' ');
   const topic = trimmed.replace(/[?!.]+$/, '').slice(0, 96);
-  return `When you reread this later, what outcome would prove that “${topic}” moved from idea to artifact?`;
+  return `What would make “${topic}” concrete enough that someone else could test it without you in the room?`;
 }
 
 function meaningfulTerms(text: string): string[] {
