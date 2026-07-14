@@ -60,4 +60,33 @@ describe('Kipper founder access', () => {
     const log = await readFile(path.join(dataDir, 'query-receipts.jsonl'), 'utf8');
     expect(log).toContain(receipt.id);
   });
+
+  it('records Kipper feedback as a reward-intent receipt without settling it', async () => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'guide-kipper-feedback-'));
+    process.env.GUIDE_DATA_DIR = dataDir;
+    vi.resetModules();
+    const store = await import('../src/domain/store');
+    const { account } = await store.createKipperSignup({ handle: 'timebuilder' });
+
+    const receipt = await store.recordKipperFeedback(account, {
+      tourStep: 'openrouter_bridge',
+      feedback: 'The receipt loop is clear, but I need to see my reward balance before sharing.',
+      rewardPreference: 'quai',
+    });
+
+    expect(receipt).toMatchObject({
+      type: 'kipper_reward_intent_receipt',
+      accountId: account.id,
+      xHandle: 'timebuilder',
+      tourStep: 'openrouter_bridge',
+      rewardPreference: 'quai',
+      rewardScope: 'kipper_founder_feedback',
+      settlementStatus: 'not_settleable_until_server_verified',
+    });
+
+    const receiptFiles = await readdir(path.join(dataDir, 'kipper-feedback'));
+    expect(receiptFiles).toHaveLength(1);
+    const log = await readFile(path.join(dataDir, 'kipper-feedback.jsonl'), 'utf8');
+    expect(log).toContain(receipt.id);
+  });
 });

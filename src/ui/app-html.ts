@@ -142,6 +142,39 @@ const enterBody = `
 const appBody = `
 <div class="grid">
   <main>
+    <section class="panel kipper-tour" id="kipperTour" aria-labelledby="kipperTourTitle" hidden>
+      <span class="annot ember">Kipper founder pass <span class="dot">·</span> welcome to the time machine</span>
+      <h2 id="kipperTourTitle">You are early enough to bend the rails.</h2>
+      <p class="sub">This is the time machine: every query becomes a page, every page can compress into memory, and every useful answer starts producing receipts before the economy exists.</p>
+      <ol class="tour-steps">
+        <li><strong>Talk to today.</strong> Use the diary like a live cockpit.</li>
+        <li><strong>Open the Atlas.</strong> Search old pages when the machine should remember instead of guessing.</li>
+        <li><strong>Watch receipts.</strong> Query tokens are measured for the future Quai→OpenRouter bridge.</li>
+        <li><strong>Tell us where it breaks.</strong> Kipper feedback creates a reward-intent receipt for founder treatment later.</li>
+      </ol>
+      <form class="kipper-feedback" id="kipperFeedback">
+        <label class="annot dim" for="kipperTourStep">Where are you in the tour?</label>
+        <select id="kipperTourStep">
+          <option value="welcome">Welcome</option>
+          <option value="diary">Diary</option>
+          <option value="atlas">Atlas</option>
+          <option value="receipts">Receipts</option>
+          <option value="openrouter_bridge">Quai→OpenRouter bridge</option>
+          <option value="reward" selected>Reward</option>
+        </select>
+        <label class="annot dim" for="kipperReward">How should we reward useful feedback?</label>
+        <select id="kipperReward">
+          <option value="quai">Quai when settlement exists</option>
+          <option value="extra_tokens">Extra Guide tokens</option>
+          <option value="early_feature_access">Early feature access</option>
+          <option value="surprise_me" selected>Surprise me</option>
+        </select>
+        <textarea id="kipperFeedbackText" placeholder="What confused you, what felt valuable, and what would make this worth sharing on X?"></textarea>
+        <button class="btn solid" type="submit">Send feedback &amp; log reward intent</button>
+        <p class="note" id="kipperFeedbackStatus">Rewards are logged as intent receipts until Kipper/Twitter verification and settlement exist.</p>
+      </form>
+    </section>
+
     <section class="panel diary gated" aria-labelledby="todayTitle">
       <div class="diary-head">
         <span class="annot" id="todayTitle">Today's page <span class="dot">·</span> <span id="diaryDate">—</span></span>
@@ -200,7 +233,7 @@ const appBody = `
       addMsg('guide','Leo · the guide',r.answer);
       $('diaryDate').textContent=fmtDate(r.diary.day);
       $('turnCount').textContent=r.diary.turnCount;
-      if(r.receipt) $('receipt').innerHTML='session  <b>'+r.receipt.sessionId+'</b>\\npage     <b>'+fmtDate(r.diary.day)+'</b>\\ngate     <b>open</b>\\ncontext  <b>'+(r.receipt.contextPrompt?'flagged':'clear')+'</b>';
+      if(r.queryReceipt) $('receipt').innerHTML='session  <b>'+r.receipt.sessionId+'</b>\\npage     <b>'+fmtDate(r.diary.day)+'</b>\\ngate     <b>open</b>\\naccess   <b>'+account.access+'</b>\\nquery    <b>'+r.queryReceipt.id+'</b>\\ntokens   <b>'+r.queryReceipt.estimatedInputTokens+' in / '+r.queryReceipt.estimatedOutputTokens+' out</b>';
     }catch(err){ addMsg('guide','Leo · the guide','Error: '+err.message); }
   });
   $('compressBtn').addEventListener('click',async()=>{

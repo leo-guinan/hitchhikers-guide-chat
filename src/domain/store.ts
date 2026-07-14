@@ -14,7 +14,9 @@ import {
   type DiaryPage,
   type FutureAnalysisRequest,
   type FutureAnalysisRequestInput,
+  type KipperFeedbackInput,
   type KipperIdentityReceipt,
+  type KipperRewardIntentReceipt,
   type KipperSignup,
   type QueryReceipt,
   ImportSourceCreateSchema,
@@ -35,12 +37,14 @@ const accountDir = path.join(dataDir, 'accounts');
 const authCodeDir = path.join(dataDir, 'auth-codes');
 const sessionDir = path.join(dataDir, 'sessions');
 const kipperReceiptDir = path.join(dataDir, 'kipper-receipts');
+const kipperFeedbackDir = path.join(dataDir, 'kipper-feedback');
 const queryReceiptDir = path.join(dataDir, 'query-receipts');
 const importSourceDir = path.join(dataDir, 'imports', 'sources');
 const importItemDir = path.join(dataDir, 'imports', 'items');
 const requestLog = path.join(dataDir, 'context-requests.jsonl');
 const futureLog = path.join(dataDir, 'future-analysis.jsonl');
 const queryReceiptLog = path.join(dataDir, 'query-receipts.jsonl');
+const kipperFeedbackLog = path.join(dataDir, 'kipper-feedback.jsonl');
 const defaultOwnerEmails = ['leo@ideanexusventures.com'];
 
 export type OwnerBackfillSummary = {
@@ -58,6 +62,7 @@ export async function initStore(): Promise<void> {
   await mkdir(authCodeDir, { recursive: true });
   await mkdir(sessionDir, { recursive: true });
   await mkdir(kipperReceiptDir, { recursive: true });
+  await mkdir(kipperFeedbackDir, { recursive: true });
   await mkdir(queryReceiptDir, { recursive: true });
   await mkdir(importSourceDir, { recursive: true });
   await mkdir(importItemDir, { recursive: true });
@@ -152,6 +157,27 @@ export async function createKipperSignup(input: KipperSignup): Promise<{ account
   await writeFile(path.join(kipperReceiptDir, `${receipt.id}.json`), JSON.stringify(receipt, null, 2));
   const session = await createSession(account);
   return { account, session, receipt };
+}
+
+export async function recordKipperFeedback(account: Account, input: KipperFeedbackInput): Promise<KipperRewardIntentReceipt> {
+  await initStore();
+  if (account.access !== 'kipper_free' || !account.kipperHandle) throw new Error('Kipper founder access is required before feedback rewards can be logged.');
+  const createdAt = new Date().toISOString();
+  const receipt: KipperRewardIntentReceipt = {
+    id: `krw_${createdAt.replace(/[-:.TZ]/g, '').slice(0, 17)}_${hash(`${account.id}|${input.tourStep}|${input.feedback}|${createdAt}`).slice(0, 8)}`,
+    type: 'kipper_reward_intent_receipt',
+    accountId: account.id,
+    xHandle: account.kipperHandle,
+    createdAt,
+    tourStep: input.tourStep,
+    feedback: input.feedback.trim(),
+    rewardPreference: input.rewardPreference,
+    rewardScope: 'kipper_founder_feedback',
+    settlementStatus: 'not_settleable_until_server_verified',
+  };
+  await writeFile(path.join(kipperFeedbackDir, `${receipt.id}.json`), JSON.stringify(receipt, null, 2));
+  await appendFile(kipperFeedbackLog, `${JSON.stringify(receipt)}\n`);
+  return receipt;
 }
 
 export function hasGuideAccess(account: Account): boolean {

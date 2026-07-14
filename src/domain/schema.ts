@@ -28,6 +28,12 @@ export const KipperSignupSchema = z.object({
   quaiAddress: z.string().min(8).max(120).optional(),
 });
 
+export const KipperFeedbackSchema = z.object({
+  tourStep: z.enum(['welcome', 'diary', 'atlas', 'receipts', 'openrouter_bridge', 'reward']).default('reward'),
+  feedback: z.string().min(3).max(2000),
+  rewardPreference: z.enum(['quai', 'extra_tokens', 'early_feature_access', 'surprise_me']).default('surprise_me'),
+});
+
 export const ContextRequestSchema = z.object({
   sessionId: z.string().min(1),
   userMessage: z.string().min(1),
@@ -92,6 +98,7 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 export type EmailAuthRequest = z.infer<typeof EmailAuthRequestSchema>;
 export type EmailAuthVerify = z.infer<typeof EmailAuthVerifySchema>;
 export type KipperSignup = z.infer<typeof KipperSignupSchema>;
+export type KipperFeedbackInput = z.infer<typeof KipperFeedbackSchema>;
 export type ContextRequestInput = z.infer<typeof ContextRequestSchema>;
 export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;
 export type FutureAnalysisRequestInput = z.infer<typeof FutureAnalysisRequestSchema>;
@@ -125,6 +132,19 @@ export type KipperIdentityReceipt = {
   createdAt: string;
   access: 'kipper_free';
   verificationStatus: 'local_only_pending_kipper_twitter_verification';
+  settlementStatus: 'not_settleable_until_server_verified';
+};
+
+export type KipperRewardIntentReceipt = {
+  id: string;
+  type: 'kipper_reward_intent_receipt';
+  accountId: string;
+  xHandle: string;
+  createdAt: string;
+  tourStep: 'welcome' | 'diary' | 'atlas' | 'receipts' | 'openrouter_bridge' | 'reward';
+  feedback: string;
+  rewardPreference: 'quai' | 'extra_tokens' | 'early_feature_access' | 'surprise_me';
+  rewardScope: 'kipper_founder_feedback';
   settlementStatus: 'not_settleable_until_server_verified';
 };
 

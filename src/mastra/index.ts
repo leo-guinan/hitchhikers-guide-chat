@@ -14,6 +14,7 @@ import {
   ImportedItemSearchSchema,
   ImportRunRequestSchema,
   ImportSourceCreateSchema,
+  KipperFeedbackSchema,
   KipperSignupSchema,
   type Account,
 } from '../domain/schema';
@@ -36,6 +37,7 @@ import {
   listImportSources,
   listContextRequests,
   markAccountPaid,
+  recordKipperFeedback,
   recordQueryReceipt,
   requestEmailCode,
   runImportSource,
@@ -135,6 +137,18 @@ export const mastra = new Mastra({
           const account = await accountFromRequest(c.req.raw);
           if (account) await ensureOwnerAccountBackfill(account);
           return c.json({ account: account ? publicAccount(account) : null });
+        },
+      }),
+      registerApiRoute('/kipper/feedback', {
+        method: 'POST',
+        requiresAuth: false,
+        handler: async (c) => {
+          const account = await accountFromRequest(c.req.raw);
+          if (!account) return c.json({ error: 'Sign in with Kipper first.' }, 401);
+          if (account.access !== 'kipper_free') return c.json({ error: 'Kipper founder access is required before feedback rewards can be logged.' }, 403);
+          const parsed = await parseJsonBody(c, KipperFeedbackSchema);
+          if (parsed instanceof Response) return parsed;
+          return c.json({ receipt: await recordKipperFeedback(account, parsed) }, 201);
         },
       }),
       registerApiRoute('/chat', {
