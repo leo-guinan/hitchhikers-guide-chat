@@ -127,8 +127,9 @@ const enterBody = `
         <label class="annot dim" for="quaiAddress" hidden>Quai address</label>
         <input type="text" id="quaiAddress" placeholder="Optional Quai address for future settlement">
         <button class="btn solid" id="kipperBtn">Claim unverified Kipper founder access →</button>
+        <button class="btn" id="twitterVerifyBtn" type="button">Verify with X OAuth →</button>
         <p class="note" id="kipperStatus" style="margin-top:8px">Unverified claim first. Kipper/X verification needs an API, OAuth, or signed challenge.</p>
-        <p class="fine">No extension check. No transaction. No rebate settlement yet. Access now; verification before rewards.</p>
+        <p class="fine">X OAuth proves handle ownership. It still does not prove Kipper wallet status unless Kipper exposes handle/wallet verification.</p>
       </section>
     </div>
 

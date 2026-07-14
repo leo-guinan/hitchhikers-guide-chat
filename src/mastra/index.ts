@@ -44,9 +44,13 @@ import {
   saveDiaryEntry,
   searchDiaryPages,
   todayKey,
+  saveTwitterOAuthState,
+  consumeTwitterOAuthState,
   verifyEmailCode,
+  verifyKipperTwitterHandle,
 } from '../domain/store';
 import { appHtml, searchHtml, enterHtml, appPageHtml, hotspotsHtml, importsHtml } from '../ui/app-html';
+import { buildTwitterOAuthStart, exchangeTwitterCode, fetchTwitterUser, twitterOAuthConfigured, twitterRedirectUri } from '../domain/twitter-oauth';
 
 await initStore();
 
@@ -88,7 +92,7 @@ export const mastra = new Mastra({
       registerApiRoute('/healthz', {
         method: 'GET',
         requiresAuth: false,
-        handler: async (c) => c.json({ ok: true, service: 'hitchhikers-guide-chat', priceUsdMonthly: 42, diaryUnit: 'day', auth: 'email+kipper', paywall: true, kipperFreeAccess: true }),
+        handler: async (c) => c.json({ ok: true, service: 'hitchhikers-guide-chat', priceUsdMonthly: 42, diaryUnit: 'day', auth: 'email+kipper+twitter-oauth', paywall: true, kipperFreeAccess: true, twitterOAuthConfigured: twitterOAuthConfigured() }),
       }),
       registerApiRoute('/pricing', {
         method: 'GET',
@@ -128,6 +132,42 @@ export const mastra = new Mastra({
           const { account, session, receipt } = await createKipperSignup(parsed);
           await ensureOwnerAccountBackfill(account);
           return c.json({ ok: true, token: session.token, account: publicAccount(account), receipt }, 201);
+        },
+      }),
+      registerApiRoute('/auth/twitter/start', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async (c) => {
+          const handle = (c.req.query('handle') ?? '').trim().replace(/^@+/, '').toLowerCase();
+          const quaiAddress = (c.req.query('quaiAddress') ?? '').trim() || undefined;
+          if (!handle) return htmlResponse(twitterResultHtml({ ok: false, title: 'Missing X handle', message: 'Enter your X handle before starting Twitter verification.' }), 400);
+          if (!twitterOAuthConfigured()) return htmlResponse(twitterResultHtml({ ok: false, title: 'Twitter OAuth not configured', message: 'TWITTER_CLIENT_ID is missing on the server. The unverified founder pass still works; verified rewards wait.' }), 503);
+          const origin = new URL(c.req.url).origin;
+          const start = buildTwitterOAuthStart({ claimedHandle: handle, quaiAddress, redirectUri: twitterRedirectUri(origin) });
+          await saveTwitterOAuthState(start.state);
+          return Response.redirect(start.url, 302);
+        },
+      }),
+      registerApiRoute('/auth/twitter/callback', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async (c) => {
+          try {
+            const error = c.req.query('error');
+            if (error) throw new Error(`Twitter OAuth error: ${error}`);
+            const code = c.req.query('code');
+            const stateValue = c.req.query('state');
+            if (!code || !stateValue) throw new Error('Twitter OAuth callback missing code/state');
+            const state = await consumeTwitterOAuthState(stateValue);
+            const origin = new URL(c.req.url).origin;
+            const accessToken = await exchangeTwitterCode({ code, codeVerifier: state.codeVerifier, config: { clientId: process.env.TWITTER_CLIENT_ID, clientSecret: process.env.TWITTER_CLIENT_SECRET, redirectUri: twitterRedirectUri(origin) } });
+            const twitterUser = await fetchTwitterUser(accessToken);
+            const { account, session, receipt } = await verifyKipperTwitterHandle({ claimedHandle: state.claimedHandle, twitterHandle: twitterUser.username, twitterUserId: twitterUser.id, quaiAddress: state.quaiAddress });
+            await ensureOwnerAccountBackfill(account);
+            return htmlResponse(twitterResultHtml({ ok: true, title: `Verified @${account.kipperHandle}`, message: 'Twitter OAuth matched your claimed Kipper handle. The time machine is open, and reward settlement now has a verified identity receipt.', token: session.token, receiptId: receipt.id }));
+          } catch (error) {
+            return htmlResponse(twitterResultHtml({ ok: false, title: 'Twitter verification failed', message: (error as Error).message }), 400);
+          }
         },
       }),
       registerApiRoute('/auth/me', {
@@ -347,7 +387,7 @@ export const mastra = new Mastra({
 });
 
 function publicAccount(account: Account) {
-  return { id: account.id, email: account.email, paid: account.paid, access: accountAccess(account), kipperHandle: account.kipperHandle, quaiAddress: account.quaiAddress };
+  return { id: account.id, email: account.email, paid: account.paid, access: accountAccess(account), kipperHandle: account.kipperHandle, quaiAddress: account.quaiAddress, twitterVerified: account.twitterVerified ?? false, twitterVerifiedAt: account.twitterVerifiedAt };
 }
 
 async function accountFromRequest(request: Request): Promise<Account | null> {
@@ -361,6 +401,23 @@ async function paidAccountFromRequest(request: Request): Promise<Account | Respo
   if (!account) return jsonError('Sign in with email first.', 401);
   if (!hasGuideAccess(account)) return jsonError('A paid $42/month account or Kipper founder pass is required before imports unlock.', 402);
   return account;
+}
+
+
+function htmlResponse(html: string, status = 200): Response {
+  return new Response(html, { status, headers: { 'content-type': 'text/html; charset=utf-8' } });
+}
+
+function twitterResultHtml(input: { ok: boolean; title: string; message: string; token?: string; receiptId?: string }): string {
+  const safeTitle = escapeHtml(input.title);
+  const safeMessage = escapeHtml(input.message);
+  const tokenScript = input.token ? `<script>localStorage.guideAuthToken=${JSON.stringify(input.token)};localStorage.guideBookSeen='1';setTimeout(()=>{location.href='/app?twitter=verified'},1800);</script>` : '';
+  const receipt = input.receiptId ? `<p class="receipt">receipt <b>${escapeHtml(input.receiptId)}</b></p>` : '';
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeTitle}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0814;color:#eae2d0;font-family:system-ui,-apple-system,sans-serif}.card{max-width:620px;margin:24px;padding:28px;border:1px solid rgba(212,169,78,.35);border-radius:16px;background:rgba(18,13,30,.9)}h1{margin:0 0 12px;color:${input.ok ? '#d4a94e' : '#e8a48d'}}p{line-height:1.55;color:#c9bfa9}.receipt{font-family:monospace}a{color:#d4a94e}</style></head><body><main class="card"><h1>${safeTitle}</h1><p>${safeMessage}</p>${receipt}<p><a href="/enter">Back to entry</a> · <a href="/app">Open app</a></p></main>${tokenScript}</body></html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] ?? char));
 }
 
 function jsonError(error: string, status: number): Response {

@@ -117,6 +117,9 @@ export type Account = {
   kipperHandle?: string;
   kipperUrl?: string;
   quaiAddress?: string;
+  twitterVerified?: boolean;
+  twitterVerifiedAt?: string;
+  twitterUserId?: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
 };
@@ -133,6 +136,27 @@ export type KipperIdentityReceipt = {
   access: 'kipper_free';
   verificationStatus: 'local_only_pending_kipper_twitter_verification';
   settlementStatus: 'not_settleable_until_server_verified';
+};
+
+
+export type TwitterOAuthState = {
+  state: string;
+  codeVerifier: string;
+  claimedHandle: string;
+  quaiAddress?: string;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type TwitterVerifiedReceipt = {
+  id: string;
+  type: 'twitter_verified_kipper_receipt';
+  accountId: string;
+  xHandle: string;
+  twitterUserId: string;
+  createdAt: string;
+  verificationStatus: 'twitter_oauth_verified';
+  settlementStatus: 'verified_not_settled';
 };
 
 export type KipperRewardIntentReceipt = {

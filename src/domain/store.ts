@@ -19,6 +19,8 @@ import {
   type KipperRewardIntentReceipt,
   type KipperSignup,
   type QueryReceipt,
+  type TwitterOAuthState,
+  type TwitterVerifiedReceipt,
   ImportSourceCreateSchema,
   type ImportedItem,
   type ImportedItemSearch,
@@ -38,6 +40,8 @@ const authCodeDir = path.join(dataDir, 'auth-codes');
 const sessionDir = path.join(dataDir, 'sessions');
 const kipperReceiptDir = path.join(dataDir, 'kipper-receipts');
 const kipperFeedbackDir = path.join(dataDir, 'kipper-feedback');
+const twitterOAuthDir = path.join(dataDir, 'twitter-oauth');
+const twitterReceiptDir = path.join(dataDir, 'twitter-receipts');
 const queryReceiptDir = path.join(dataDir, 'query-receipts');
 const importSourceDir = path.join(dataDir, 'imports', 'sources');
 const importItemDir = path.join(dataDir, 'imports', 'items');
@@ -45,6 +49,7 @@ const requestLog = path.join(dataDir, 'context-requests.jsonl');
 const futureLog = path.join(dataDir, 'future-analysis.jsonl');
 const queryReceiptLog = path.join(dataDir, 'query-receipts.jsonl');
 const kipperFeedbackLog = path.join(dataDir, 'kipper-feedback.jsonl');
+const twitterReceiptLog = path.join(dataDir, 'twitter-receipts.jsonl');
 const defaultOwnerEmails = ['leo@ideanexusventures.com'];
 
 export type OwnerBackfillSummary = {
@@ -63,6 +68,8 @@ export async function initStore(): Promise<void> {
   await mkdir(sessionDir, { recursive: true });
   await mkdir(kipperReceiptDir, { recursive: true });
   await mkdir(kipperFeedbackDir, { recursive: true });
+  await mkdir(twitterOAuthDir, { recursive: true });
+  await mkdir(twitterReceiptDir, { recursive: true });
   await mkdir(queryReceiptDir, { recursive: true });
   await mkdir(importSourceDir, { recursive: true });
   await mkdir(importItemDir, { recursive: true });
@@ -125,9 +132,13 @@ export async function markAccountPaid(email: string, stripe: { customerId?: stri
   return updated;
 }
 
+export function normalizeXHandle(handle: string): string {
+  return handle.trim().replace(/^@+/, '').toLowerCase();
+}
+
 export async function createKipperSignup(input: KipperSignup): Promise<{ account: Account; session: AuthSession; receipt: KipperIdentityReceipt }> {
   await initStore();
-  const handle = input.handle.trim().replace(/^@+/, '').toLowerCase();
+  const handle = normalizeXHandle(input.handle);
   const email = `kipper+${handle}@users.hitchhikersguidetothefuture.com`;
   const existing = await upsertAccount(email);
   const now = new Date().toISOString();
@@ -178,6 +189,50 @@ export async function recordKipperFeedback(account: Account, input: KipperFeedba
   await writeFile(path.join(kipperFeedbackDir, `${receipt.id}.json`), JSON.stringify(receipt, null, 2));
   await appendFile(kipperFeedbackLog, `${JSON.stringify(receipt)}\n`);
   return receipt;
+}
+
+
+export async function saveTwitterOAuthState(state: TwitterOAuthState): Promise<void> {
+  await initStore();
+  await writeFile(twitterOAuthStatePath(state.state), JSON.stringify(state, null, 2));
+}
+
+export async function consumeTwitterOAuthState(state: string): Promise<TwitterOAuthState> {
+  await initStore();
+  const record = JSON.parse(await readFile(twitterOAuthStatePath(state), 'utf8')) as TwitterOAuthState;
+  if (Date.parse(record.expiresAt) < Date.now()) throw new Error('Twitter OAuth state expired');
+  return record;
+}
+
+export async function verifyKipperTwitterHandle(input: { claimedHandle: string; twitterHandle: string; twitterUserId: string; quaiAddress?: string }): Promise<{ account: Account; session: AuthSession; receipt: TwitterVerifiedReceipt }> {
+  await initStore();
+  const claimed = normalizeXHandle(input.claimedHandle);
+  const returned = normalizeXHandle(input.twitterHandle);
+  if (claimed !== returned) throw new Error(`Twitter account @${returned} did not match claimed Kipper handle @${claimed}`);
+  const { account: claimedAccount } = await createKipperSignup({ handle: claimed, quaiAddress: input.quaiAddress });
+  const now = new Date().toISOString();
+  const account: Account = {
+    ...claimedAccount,
+    twitterVerified: true,
+    twitterVerifiedAt: now,
+    twitterUserId: input.twitterUserId,
+    updatedAt: now,
+  };
+  await writeFile(accountPath(account.email), JSON.stringify(account, null, 2));
+  const receipt: TwitterVerifiedReceipt = {
+    id: `tvr_${now.replace(/[-:.TZ]/g, '').slice(0, 17)}_${hash(`${account.id}|${input.twitterUserId}|${now}`).slice(0, 8)}`,
+    type: 'twitter_verified_kipper_receipt',
+    accountId: account.id,
+    xHandle: returned,
+    twitterUserId: input.twitterUserId,
+    createdAt: now,
+    verificationStatus: 'twitter_oauth_verified',
+    settlementStatus: 'verified_not_settled',
+  };
+  await writeFile(path.join(twitterReceiptDir, `${receipt.id}.json`), JSON.stringify(receipt, null, 2));
+  await appendFile(twitterReceiptLog, `${JSON.stringify(receipt)}\n`);
+  const session = await createSession(account);
+  return { account, session, receipt };
 }
 
 export function hasGuideAccess(account: Account): boolean {
@@ -502,6 +557,11 @@ function authCodePath(email: string): string {
 
 function sessionPath(token: string): string {
   return path.join(sessionDir, `${hash(token)}.json`);
+}
+
+
+function twitterOAuthStatePath(state: string): string {
+  return path.join(twitterOAuthDir, `${hash(state)}.json`);
 }
 
 function importSourcePath(accountId: string, sourceId: string): string {
