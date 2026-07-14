@@ -140,7 +140,7 @@ export const mastra = new Mastra({
         requiresAuth: false,
         handler: async (c) => {
           if (!twitterOAuthConfigured()) return htmlResponse(twitterResultHtml({ ok: false, title: 'Twitter OAuth not configured', message: 'TWITTER_CLIENT_ID is missing on the server. Email sign-in remains available as backup.' }), 503);
-          const origin = new URL(c.req.url).origin;
+          const origin = publicOrigin(c.req.url);
           const start = buildTwitterOAuthStart({ redirectUri: twitterRedirectUri(origin) });
           await saveTwitterOAuthState(start.state);
           return Response.redirect(start.url, 302);
@@ -157,7 +157,7 @@ export const mastra = new Mastra({
             const stateValue = c.req.query('state');
             if (!code || !stateValue) throw new Error('Twitter OAuth callback missing code/state');
             const state = await consumeTwitterOAuthState(stateValue);
-            const origin = new URL(c.req.url).origin;
+            const origin = publicOrigin(c.req.url);
             const accessToken = await exchangeTwitterCode({ code, codeVerifier: state.codeVerifier, config: { clientId: process.env.TWITTER_CLIENT_ID, clientSecret: process.env.TWITTER_CLIENT_SECRET, redirectUri: twitterRedirectUri(origin) } });
             const twitterUser = await fetchTwitterUser(accessToken);
             const { account, session, receipt } = await createTwitterLogin({ twitterHandle: twitterUser.username, twitterUserId: twitterUser.id });
@@ -401,6 +401,10 @@ async function paidAccountFromRequest(request: Request): Promise<Account | Respo
   return account;
 }
 
+
+function publicOrigin(requestUrl: string): string {
+  return (process.env.GUIDE_PUBLIC_ORIGIN ?? new URL(requestUrl).origin).replace(/\/$/, '');
+}
 
 function htmlResponse(html: string, status = 200): Response {
   return new Response(html, { status, headers: { 'content-type': 'text/html; charset=utf-8' } });

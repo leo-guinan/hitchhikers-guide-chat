@@ -35,7 +35,7 @@ export function buildTwitterOAuthStart(input: { claimedHandle?: string; quaiAddr
     response_type: 'code',
     client_id: clientId,
     redirect_uri: input.redirectUri,
-    scope: 'users.read tweet.read',
+    scope: 'users.read',
     state: stateValue,
     code_challenge: sha256Base64Url(codeVerifier),
     code_challenge_method: 'S256',
