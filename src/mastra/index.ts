@@ -18,7 +18,7 @@ import {
   KipperSignupSchema,
   type Account,
 } from '../domain/schema';
-import { answerChat, pricingPlan, summarizeDiaryPage } from '../domain/engine';
+import { answerChat, pricingPlan, rankDiaryPagesForQuery, summarizeDiaryPage } from '../domain/engine';
 import { buildDiaryHeatmap } from '../domain/heatmap';
 import { createCheckoutSession, stripePriceId } from '../domain/payments';
 import {
@@ -203,7 +203,7 @@ export const mastra = new Mastra({
           const existingPage = await getDiaryPage(day, account.id);
           await appendDiaryTurn(day, account.id, { role: 'user', content: body.message });
           const history = existingPage.turns.map((turn) => ({ role: turn.role, content: turn.content }));
-          const pastPages = (await searchDiaryPages('', account.id)).filter((page) => page.day < day).slice(0, 12);
+          const pastPages = (await searchDiaryPages('', account.id)).filter((page) => page.day < day && page.entry);
           const answer = await answerChat(account.id, body.message, history, day, pastPages);
           const updatedPage = await appendDiaryTurn(day, account.id, { role: 'assistant', content: answer.answer });
           const queryReceipt = await recordQueryReceipt({ account, day, messageChars: answer.receipt.messageChars, answerChars: answer.receipt.answerChars, mode: answer.receipt.mode, model: answer.receipt.model });
@@ -230,7 +230,8 @@ export const mastra = new Mastra({
           const parsed = parseValue(DiarySearchSchema, { query: c.req.query('query') });
           if (parsed instanceof Response) return parsed;
           const query = parsed.query ?? '';
-          return c.json({ pages: await searchDiaryPages(query, account.id) });
+          const pages = await searchDiaryPages('', account.id);
+          return c.json({ pages: query ? rankDiaryPagesForQuery(query, '9999-12-31', pages).map((result) => result.page) : pages });
         },
       }),
       registerApiRoute('/diary/heatmap', {

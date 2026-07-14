@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { answerChat, buildContextPrompt, buildDiaryCompass, pricingPlan, summarizeDiaryPage } from '../src/domain/engine';
+import { answerChat, buildContextPrompt, buildDiaryCompass, pricingPlan, rankDiaryPagesForQuery, summarizeDiaryPage } from '../src/domain/engine';
 
 describe('guide engine', () => {
   it('exposes the single $42/month plan', () => {
@@ -89,6 +89,24 @@ describe('guide engine', () => {
     expect(compass).not.toContain('— \n');
   });
 
+
+  it('ranks past links competitively across multiple search angles', () => {
+    const genericRecent = pageWithEntry('2026-07-13', 'Recent generic crypto note', 'A loose note about crypto terminology.', ['What should I read?'], ['Collect links']);
+    const titleMatch = pageWithEntry('2026-07-10', 'Thermodynamic crypto primitives', 'Thermodynamic crypto through proof of work, energy cost, heat, and physical scarcity as trust anchors.', ['What physical cost creates trust?'], ['Compare proof of work and useful work']);
+    const questionMatch = pageWithEntry('2026-07-09', 'Trust substrate receipts', 'Receipts and observable constraints for alignment.', ['What would count as evidence for thermodynamic crypto?'], ['Rank by evidence, not vibes']);
+    const unrelatedRecent = pageWithEntry('2026-07-12', 'Newsletter launch notes', 'Substack import and copywriting cleanup.', ['What headline works?'], ['Ship newsletter']);
+
+    const ranked = rankDiaryPagesForQuery("what's thermodynamic crypto?", '2026-07-14', [genericRecent, titleMatch, questionMatch, unrelatedRecent]);
+
+    expect(ranked.map((result) => result.page.day).slice(0, 3)).toEqual(['2026-07-10', '2026-07-09', '2026-07-13']);
+    expect(ranked[0].angles.title).toBeGreaterThan(0);
+    expect(ranked[0].angles.summary).toBeGreaterThan(0);
+    expect(ranked[1].angles.questions).toBeGreaterThan(0);
+
+    const compass = buildDiaryCompass("what's thermodynamic crypto?", '2026-07-14', [genericRecent, titleMatch, questionMatch, unrelatedRecent]);
+    expect(compass).toContain('Past: [Thermodynamic crypto primitives](/diary/2026-07-10)');
+  });
+
 });
 
 function priorPage() {
@@ -106,6 +124,30 @@ function priorPage() {
       summary: '- The Alignment Test: 2026-07-12 Substack import: How do you know if your AI system is aligned? The Alignment Test How do you know if your AI system is aligned? How do you know if your AI system is aligned?',
       keyQuestions: ['What proof makes this believable?'],
       openLoops: ['Find the smallest credible demo.'],
+      humanContextNeeded: [],
+      turnCount: 2,
+      sourceTurnIds: ['t1', 't2'],
+    },
+    turns: [],
+  };
+}
+
+
+function pageWithEntry(day: string, title: string, summary: string, keyQuestions: string[], openLoops: string[]) {
+  return {
+    day,
+    sessionId: 's1',
+    createdAt: `${day}T00:00:00.000Z`,
+    updatedAt: `${day}T00:01:00.000Z`,
+    entry: {
+      id: `entry_${day}`,
+      day,
+      createdAt: `${day}T00:01:00.000Z`,
+      updatedAt: `${day}T00:01:00.000Z`,
+      title,
+      summary,
+      keyQuestions,
+      openLoops,
       humanContextNeeded: [],
       turnCount: 2,
       sourceTurnIds: ['t1', 't2'],

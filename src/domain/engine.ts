@@ -1,6 +1,22 @@
 import type { ChatAnswer, ChatMessage, DiaryEntry, DiaryPage, PricingPlan } from './schema';
 import { generateModelAnswer } from './model-client';
 
+type DiarySearchAngles = {
+  title: number;
+  summary: number;
+  questions: number;
+  openLoops: number;
+  turns: number;
+  recency: number;
+};
+
+export type DiarySearchResult = {
+  page: DiaryPage;
+  score: number;
+  angles: DiarySearchAngles;
+  matchedTerms: string[];
+};
+
 export const guideInstructions = `You are the Hitchhiker's Guide to the Future: a concise AI collaborator for people who already use AI and need the missing context supplied by a human when the machine hits a boundary.
 
 Opening:
@@ -174,16 +190,58 @@ function appendDiaryCompass(answer: string, compass: string): string {
 }
 
 function choosePastPage(message: string, day: string, pages: DiaryPage[]): DiaryPage | undefined {
+  return rankDiaryPagesForQuery(message, day, pages)[0]?.page
+    ?? pages.filter((page) => page.day < day && page.entry).sort((a, b) => b.day.localeCompare(a.day))[0];
+}
+
+export function rankDiaryPagesForQuery(message: string, day: string, pages: DiaryPage[]): DiarySearchResult[] {
   const terms = meaningfulTerms(message);
   return pages
     .filter((page) => page.day < day && page.entry)
-    .map((page) => ({ page, score: scorePastPage(page, terms) }))
-    .sort((a, b) => b.score - a.score || b.page.day.localeCompare(a.page.day))[0]?.page;
+    .map((page) => scoreDiaryPage(page, terms))
+    .filter((result) => result.matchedTerms.length > 0)
+    .sort((a, b) => b.score - a.score || b.page.day.localeCompare(a.page.day));
 }
 
-function scorePastPage(page: DiaryPage, terms: string[]): number {
-  const text = [page.entry?.title, page.entry?.summary, ...(page.entry?.keyQuestions ?? []), ...(page.entry?.openLoops ?? [])].join(' ').toLowerCase();
-  return terms.reduce((score, term) => score + (text.includes(term) ? 1 : 0), 0);
+function scoreDiaryPage(page: DiaryPage, terms: string[]): DiarySearchResult {
+  const entry = page.entry;
+  const title = entry?.title ?? '';
+  const summary = entry?.summary ?? '';
+  const questions = (entry?.keyQuestions ?? []).join(' ');
+  const openLoops = (entry?.openLoops ?? []).join(' ');
+  const turns = page.turns.map((turn) => turn.content).join(' ');
+  const angles: DiarySearchAngles = {
+    title: scoreText(title, terms, 8),
+    summary: scoreText(summary, terms, 3),
+    questions: scoreText(questions, terms, 5),
+    openLoops: scoreText(openLoops, terms, 4),
+    turns: scoreText(turns, terms, 1),
+    recency: recencyScore(page.day),
+  };
+  const matchedTerms = terms.filter((term) => [title, summary, questions, openLoops, turns].some((text) => normalizeSearchText(text).includes(term)));
+  const score = angles.title + angles.summary + angles.questions + angles.openLoops + angles.turns + angles.recency;
+  return { page, score, angles, matchedTerms };
+}
+
+function scoreText(text: string, terms: string[], weight: number): number {
+  const normalized = normalizeSearchText(text);
+  if (!normalized || !terms.length) return 0;
+  let score = 0;
+  for (const term of terms) {
+    if (normalized.includes(term)) score += weight;
+  }
+  for (let index = 0; index < terms.length - 1; index += 1) {
+    if (normalized.includes(`${terms[index]} ${terms[index + 1]}`)) score += weight * 2;
+  }
+  return score;
+}
+
+function normalizeSearchText(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function recencyScore(day: string): number {
+  return Math.max(0, Math.min(1, Date.parse(day) / Date.parse('2100-01-01')));
 }
 
 function cleanPastSummary(summary: string): string {
