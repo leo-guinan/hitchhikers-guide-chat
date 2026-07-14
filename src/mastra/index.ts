@@ -28,6 +28,7 @@ import {
   createFutureAnalysisRequest,
   createKipperSignup,
   createImportSource,
+  createTwitterLogin,
   ensureOwnerAccountBackfill,
   getDiaryPage,
   hasGuideAccess,
@@ -92,7 +93,7 @@ export const mastra = new Mastra({
       registerApiRoute('/healthz', {
         method: 'GET',
         requiresAuth: false,
-        handler: async (c) => c.json({ ok: true, service: 'hitchhikers-guide-chat', priceUsdMonthly: 42, diaryUnit: 'day', auth: 'email+kipper+twitter-oauth', paywall: true, kipperFreeAccess: true, twitterOAuthConfigured: twitterOAuthConfigured() }),
+        handler: async (c) => c.json({ ok: true, service: 'hitchhikers-guide-chat', priceUsdMonthly: 42, diaryUnit: 'day', auth: 'twitter-oauth+email-backup', paywall: true, twitterOAuthConfigured: twitterOAuthConfigured() }),
       }),
       registerApiRoute('/pricing', {
         method: 'GET',
@@ -138,12 +139,9 @@ export const mastra = new Mastra({
         method: 'GET',
         requiresAuth: false,
         handler: async (c) => {
-          const handle = (c.req.query('handle') ?? '').trim().replace(/^@+/, '').toLowerCase();
-          const quaiAddress = (c.req.query('quaiAddress') ?? '').trim() || undefined;
-          if (!handle) return htmlResponse(twitterResultHtml({ ok: false, title: 'Missing X handle', message: 'Enter your X handle before starting Twitter verification.' }), 400);
-          if (!twitterOAuthConfigured()) return htmlResponse(twitterResultHtml({ ok: false, title: 'Twitter OAuth not configured', message: 'TWITTER_CLIENT_ID is missing on the server. The unverified founder pass still works; verified rewards wait.' }), 503);
+          if (!twitterOAuthConfigured()) return htmlResponse(twitterResultHtml({ ok: false, title: 'Twitter OAuth not configured', message: 'TWITTER_CLIENT_ID is missing on the server. Email sign-in remains available as backup.' }), 503);
           const origin = new URL(c.req.url).origin;
-          const start = buildTwitterOAuthStart({ claimedHandle: handle, quaiAddress, redirectUri: twitterRedirectUri(origin) });
+          const start = buildTwitterOAuthStart({ redirectUri: twitterRedirectUri(origin) });
           await saveTwitterOAuthState(start.state);
           return Response.redirect(start.url, 302);
         },
@@ -162,9 +160,9 @@ export const mastra = new Mastra({
             const origin = new URL(c.req.url).origin;
             const accessToken = await exchangeTwitterCode({ code, codeVerifier: state.codeVerifier, config: { clientId: process.env.TWITTER_CLIENT_ID, clientSecret: process.env.TWITTER_CLIENT_SECRET, redirectUri: twitterRedirectUri(origin) } });
             const twitterUser = await fetchTwitterUser(accessToken);
-            const { account, session, receipt } = await verifyKipperTwitterHandle({ claimedHandle: state.claimedHandle, twitterHandle: twitterUser.username, twitterUserId: twitterUser.id, quaiAddress: state.quaiAddress });
+            const { account, session, receipt } = await createTwitterLogin({ twitterHandle: twitterUser.username, twitterUserId: twitterUser.id });
             await ensureOwnerAccountBackfill(account);
-            return htmlResponse(twitterResultHtml({ ok: true, title: `Verified @${account.kipperHandle}`, message: 'Twitter OAuth matched your claimed Kipper handle. The time machine is open, and reward settlement now has a verified identity receipt.', token: session.token, receiptId: receipt.id }));
+            return htmlResponse(twitterResultHtml({ ok: true, title: `Signed in as @${account.twitterHandle ?? twitterUser.username}`, message: 'Twitter OAuth verified your handle. The time machine is open.', token: session.token, receiptId: receipt.id }));
           } catch (error) {
             return htmlResponse(twitterResultHtml({ ok: false, title: 'Twitter verification failed', message: (error as Error).message }), 400);
           }
@@ -197,7 +195,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'Sign in with Twitter or use the email backup before chat unlocks.' }, 402);
           const parsed = await parseJsonBody(c, ChatRequestSchema);
           if (parsed instanceof Response) return parsed;
           const body = parsed;
@@ -217,7 +215,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'Sign in with Twitter or use the email backup before chat unlocks.' }, 402);
           return c.json({ page: await getDiaryPage(todayKey(), account.id) });
         },
       }),
@@ -227,7 +225,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'Sign in with Twitter or use the email backup before chat unlocks.' }, 402);
           const parsed = parseValue(DiarySearchSchema, { query: c.req.query('query') });
           if (parsed instanceof Response) return parsed;
           const query = parsed.query ?? '';
@@ -240,7 +238,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'Sign in with Twitter or use the email backup before chat unlocks.' }, 402);
           const requestedWeeks = Number(c.req.query('weeks') ?? 53);
           const weeks = Number.isFinite(requestedWeeks) ? Math.max(1, Math.min(104, requestedWeeks)) : 53;
           return c.json({ heatmap: buildDiaryHeatmap(await searchDiaryPages('', account.id), { weeks }) });
@@ -252,7 +250,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'Sign in with Twitter or use the email backup before chat unlocks.' }, 402);
           return c.json({ page: await getDiaryPage(c.req.param('day'), account.id) });
         },
       }),
@@ -262,7 +260,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'Sign in with Twitter or use the email backup before chat unlocks.' }, 402);
           const parsed = await parseJsonBody(c, DiaryCompressionRequestSchema);
           if (parsed instanceof Response) return parsed;
           const page = await getDiaryPage(c.req.param('day'), account.id);
@@ -327,7 +325,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'Sign in with Twitter or use the email backup before chat unlocks.' }, 402);
           const parsed = await parseJsonBody(c, FutureAnalysisRequestSchema);
           if (parsed instanceof Response) return parsed;
           const body = parsed;
@@ -365,7 +363,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'Sign in with Twitter or use the email backup before chat unlocks.' }, 402);
           const parsed = await parseJsonBody(c, ContextRequestSchema);
           if (parsed instanceof Response) return parsed;
           const body = parsed;
@@ -378,7 +376,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'Sign in with Twitter or use the email backup before chat unlocks.' }, 402);
           return c.json({ requests: await listContextRequests() });
         },
       }),
@@ -387,7 +385,7 @@ export const mastra = new Mastra({
 });
 
 function publicAccount(account: Account) {
-  return { id: account.id, email: account.email, paid: account.paid, access: accountAccess(account), kipperHandle: account.kipperHandle, quaiAddress: account.quaiAddress, twitterVerified: account.twitterVerified ?? false, twitterVerifiedAt: account.twitterVerifiedAt };
+  return { id: account.id, email: account.email, paid: account.paid, access: accountAccess(account), twitterHandle: account.twitterHandle, kipperHandle: account.kipperHandle, quaiAddress: account.quaiAddress, twitterVerified: account.twitterVerified ?? false, twitterVerifiedAt: account.twitterVerifiedAt };
 }
 
 async function accountFromRequest(request: Request): Promise<Account | null> {

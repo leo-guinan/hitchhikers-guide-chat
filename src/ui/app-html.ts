@@ -68,9 +68,7 @@ const enterBody = `
       <span class="annot">Boarding <span class="dot">·</span> three gates <span class="dot">·</span> one star</span>
       <h1 id="boardingTitle">Open the diary.</h1>
       <p>
-        One plan, whole sky — <strong>$42/month</strong>. Kipper founders can enter free while
-        the first audience forms. Either way, the diary opens and the system starts
-        logging query receipts for the future Quai→OpenRouter token bridge.
+        Sign in with Twitter to open the diary. The email path stays available as a quiet backup for legacy accounts.
       </p>
     </div>
 
@@ -92,47 +90,32 @@ const enterBody = `
       </svg>
     </div>
 
-    <div class="boarding-gates">
-      <section class="boarding-gate" id="gateReturn" aria-labelledby="returnTitle">
-        <h2 class="annot" id="returnTitle">Gate I <span class="dot">·</span> Returning traveler</h2>
-        <p class="sub">Already have an account? <strong>Sign in by starlight</strong> — we email you a code, no password to remember.</p>
-        <label class="annot dim" for="email" hidden>Email</label>
-        <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
-        <button class="btn" id="sendCode">Send sign-in code</button>
-        <div class="codestep" id="codestep">
-          <label class="annot dim" for="code" hidden>Code</label>
-          <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code">
-          <button class="btn solid" id="verifyBtn">Verify &amp; open the diary</button>
-        </div>
-        <p class="note" id="accStatus">Signed out.</p>
-        <p class="fine">Your subscription is attached to your email. Sign in and today's page unseals.</p>
+    <div class="boarding-gates twitter-primary">
+      <section class="boarding-gate twitter" id="gateTwitter" aria-labelledby="twitterTitle">
+        <h2 class="annot" id="twitterTitle">Primary gate <span class="dot">·</span> Twitter / X</h2>
+        <p class="sub">Sign in with Twitter. One click proves the handle and opens the time machine.</p>
+        <button class="btn solid" id="twitterLoginBtn" type="button">Continue with Twitter →</button>
+        <p class="note" id="twitterStatus" style="margin-top:8px">OAuth verifies your X handle. Email remains as backup for the original account.</p>
+        <p class="fine">If you sign in as @leo_guinan, the session attaches to Leo's existing Guide account.</p>
       </section>
 
-      <section class="boarding-gate new" id="gateNew" aria-labelledby="newTitle">
-        <h2 class="annot" id="newTitle">Gate II <span class="dot">·</span> New traveler</h2>
-        <p class="sub">First time aboard? <strong>Pay the toll and your account is made</strong> — one step, no separate signup.</p>
-        <label class="annot dim" for="email2" hidden>Email for your new account</label>
-        <input type="email" id="email2" placeholder="you@example.com — becomes your account" autocomplete="email">
-        <button class="btn solid" id="payBtn">Start at $42/month →</button>
-        <p class="note">checkout by stripe <span class="dot">·</span> cancel anytime</p>
-        <p class="note" id="payStatus" style="margin-top:8px">No toll paid yet.</p>
-        <p class="fine">The Atlas and every diary entry stay yours. A sign-in code arrives after checkout.</p>
-      </section>
-
-      <section class="boarding-gate kipper" id="gateKipper" aria-labelledby="kipperTitle">
-        <h2 class="annot" id="kipperTitle">Gate III <span class="dot">·</span> Kipper founder pass</h2>
-        <p class="sub">Have a Kipper/X identity? <strong>Claim early access</strong>. This is not verified against the Kipper extension yet; it starts query receipts so Quai can later power the OpenRouter token bridge.</p>
-        <label class="annot dim" for="kipperHandle" hidden>X handle</label>
-        <input type="text" id="kipperHandle" placeholder="@yourhandle" autocomplete="username">
-        <label class="annot dim" for="quaiAddress" hidden>Quai address</label>
-        <input type="text" id="quaiAddress" placeholder="Optional Quai address for future settlement">
-        <button class="btn solid" id="kipperBtn">Claim unverified Kipper founder access →</button>
-        <button class="btn" id="twitterVerifyBtn" type="button">Verify with X OAuth →</button>
-        <p class="note" id="kipperStatus" style="margin-top:8px">Unverified claim first. Kipper/X verification needs an API, OAuth, or signed challenge.</p>
-        <p class="fine">X OAuth proves handle ownership. It still does not prove Kipper wallet status unless Kipper exposes handle/wallet verification.</p>
-      </section>
+      <details class="boarding-gate backup" id="emailBackup">
+        <summary class="annot">Email backup <span class="dot">·</span> legacy account access</summary>
+        <section id="gateReturn" aria-labelledby="returnTitle">
+          <h2 class="annot" id="returnTitle">Returning traveler</h2>
+          <p class="sub">Use this only if Twitter OAuth is blocked or you need the original email account.</p>
+          <label class="annot dim" for="email" hidden>Email</label>
+          <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+          <button class="btn" id="sendCode">Send sign-in code</button>
+          <div class="codestep" id="codestep">
+            <label class="annot dim" for="code" hidden>Code</label>
+            <input type="text" id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code">
+            <button class="btn solid" id="verifyBtn">Verify &amp; open the diary</button>
+          </div>
+          <p class="note" id="accStatus">Signed out.</p>
+        </section>
+      </details>
     </div>
-
     <div class="boarding-backrow">
       <a href="/">← Back to the cover</a>
       <span class="annot dim">mostly harmless <span class="dot">·</span> don't forget your towel</span>
@@ -143,38 +126,6 @@ const enterBody = `
 const appBody = `
 <div class="grid">
   <main>
-    <section class="panel kipper-tour" id="kipperTour" aria-labelledby="kipperTourTitle" hidden>
-      <span class="annot ember">Kipper founder claim <span class="dot">·</span> welcome to the time machine</span>
-      <h2 id="kipperTourTitle">You are early enough to bend the rails.</h2>
-      <p class="sub">This is the time machine: every query becomes a page, every page can compress into memory, and every useful answer starts producing receipts before the economy exists.</p>
-      <ol class="tour-steps">
-        <li><strong>Talk to today.</strong> Use the diary like a live cockpit.</li>
-        <li><strong>Open the Atlas.</strong> Search old pages when the machine should remember instead of guessing.</li>
-        <li><strong>Watch receipts.</strong> Query tokens are measured for the future Quai→OpenRouter bridge.</li>
-        <li><strong>Tell us where it breaks.</strong> Kipper feedback creates a reward-intent receipt; verified Kipper identity decides settlement later.</li>
-      </ol>
-      <form class="kipper-feedback" id="kipperFeedback">
-        <label class="annot dim" for="kipperTourStep">Where are you in the tour?</label>
-        <select id="kipperTourStep">
-          <option value="welcome">Welcome</option>
-          <option value="diary">Diary</option>
-          <option value="atlas">Atlas</option>
-          <option value="receipts">Receipts</option>
-          <option value="openrouter_bridge">Quai→OpenRouter bridge</option>
-          <option value="reward" selected>Reward</option>
-        </select>
-        <label class="annot dim" for="kipperReward">How should we reward useful feedback?</label>
-        <select id="kipperReward">
-          <option value="quai">Quai when settlement exists</option>
-          <option value="extra_tokens">Extra Guide tokens</option>
-          <option value="early_feature_access">Early feature access</option>
-          <option value="surprise_me" selected>Surprise me</option>
-        </select>
-        <textarea id="kipperFeedbackText" placeholder="What confused you, what felt valuable, and what would make this worth sharing on X?"></textarea>
-        <button class="btn solid" type="submit">Send feedback &amp; log reward intent</button>
-        <p class="note" id="kipperFeedbackStatus">Rewards are intent receipts only until Kipper/Twitter verification and settlement exist.</p>
-      </form>
-    </section>
 
     <section class="panel diary gated" aria-labelledby="todayTitle">
       <div class="diary-head">
@@ -195,7 +146,7 @@ const appBody = `
       </div>
       <div class="veil" id="veil">
         <span class="annot ember">Sealed page <span class="dot">·</span> account gated</span>
-        <p>Today's chat context is behind the gate. <a href="/enter">Open the diary</a> with email, Stripe, or a Kipper founder pass.</p>
+        <p>Today's chat context is behind the gate. <a href="/enter">Open the diary</a> with Twitter, or the email backup.</p>
         <a class="btn solid" href="/enter" id="veilBtn">Start at $42/month</a>
       </div>
     </section>

@@ -113,8 +113,9 @@ export type Account = {
   createdAt: string;
   updatedAt: string;
   paid: boolean;
-  access?: 'none' | 'paid' | 'kipper_free';
+  access?: 'none' | 'paid' | 'kipper_free' | 'twitter';
   kipperHandle?: string;
+  twitterHandle?: string;
   kipperUrl?: string;
   quaiAddress?: string;
   twitterVerified?: boolean;
@@ -142,7 +143,7 @@ export type KipperIdentityReceipt = {
 export type TwitterOAuthState = {
   state: string;
   codeVerifier: string;
-  claimedHandle: string;
+  claimedHandle?: string;
   quaiAddress?: string;
   createdAt: string;
   expiresAt: string;
@@ -150,7 +151,7 @@ export type TwitterOAuthState = {
 
 export type TwitterVerifiedReceipt = {
   id: string;
-  type: 'twitter_verified_kipper_receipt';
+  type: 'twitter_oauth_login_receipt';
   accountId: string;
   xHandle: string;
   twitterUserId: string;
@@ -282,7 +283,7 @@ export type QueryReceipt = {
   id: string;
   type: 'guide_query_receipt';
   accountId: string;
-  access: 'paid' | 'kipper_free';
+  access: 'paid' | 'kipper_free' | 'twitter';
   day: string;
   createdAt: string;
   messageChars: number;

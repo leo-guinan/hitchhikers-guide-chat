@@ -25,7 +25,7 @@ export function twitterOAuthConfigured(env = process.env): boolean {
   return Boolean(env.TWITTER_CLIENT_ID);
 }
 
-export function buildTwitterOAuthStart(input: { claimedHandle: string; quaiAddress?: string; redirectUri: string; env?: NodeJS.ProcessEnv }): TwitterOAuthStart {
+export function buildTwitterOAuthStart(input: { claimedHandle?: string; quaiAddress?: string; redirectUri: string; env?: NodeJS.ProcessEnv }): TwitterOAuthStart {
   const env = input.env ?? process.env;
   const clientId = env.TWITTER_CLIENT_ID;
   if (!clientId) throw new Error('TWITTER_CLIENT_ID is not configured');

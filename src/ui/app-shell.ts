@@ -73,7 +73,7 @@ const footerHtml = `
       <section class="book-page" data-i="4">
         <span class="annot ember">The last page <span class="dot">·</span> your move</span>
         <h2>Your journey<br>begins.</h2>
-        <p>Open the diary with email, or claim a Kipper founder pass while the first audience is forming. Then the book is yours to keep writing.</p>
+        <p>Open the diary with Twitter. Email remains as the quiet backup hatch. Then the book is yours to keep writing.</p>
         <button class="btn solid" id="bookStart">Don't panic · start your journey</button>
       </section>
     </div>
@@ -144,7 +144,7 @@ const heroHtml = `
     </p>
     <div class="price-line">
       <span class="price">$42</span>
-      <span class="annot dim">/ month <span class="dot">·</span> Kipper founders enter free <span class="dot">·</span> the answer, obviously</span>
+      <span class="annot dim">/ month <span class="dot">·</span> Twitter login <span class="dot">·</span> the answer, obviously</span>
     </div>
   </div>
   ${orbfigSvg}
@@ -160,21 +160,17 @@ function authHeaders(){return token?{authorization:'Bearer '+token}:{};}
 function fmtDate(iso){return iso?iso.replace(/-/g,'.'):'—';}
 async function api(path,opts={}){const res=await fetch(path,{headers:{'content-type':'application/json',...authHeaders(),...(opts.headers||{})},...opts});const text=await res.text();const data=text?JSON.parse(text):{};if(!res.ok)throw new Error(data.error||text||res.statusText);return data;}
 function setStatus(el,msg,ember){if(!el)return;el.textContent=msg;el.style.color=ember?'#e8a48d':'';}
-function guideHasAccess(){return !!account&&(account.paid||account.access==='paid'||account.access==='kipper_free');}
-function setGate(){const signed=!!account;const access=guideHasAccess();const label=account?.access==='kipper_free'?'unverified kipper founder':account?.paid?'paid':'unpaid';const identity=account?.kipperHandle?'@'+account.kipperHandle:account?.email;const acc=$('accStatus');if(acc)acc.textContent=signed?identity+' // '+label:'Signed out.';$('payStatus') && ($('payStatus').textContent=access?'Diary open. Query receipts are being logged.':signed?'Signed in. Subscribe or claim an unverified Kipper founder pass to unseal the diary.':'No toll paid yet.');const ks=$('kipperStatus');if(ks&&account?.access==='kipper_free')ks.textContent='Unverified Kipper claim active. Query receipts are being logged; rewards still require Kipper/X verification.';const tour=$('kipperTour');if(tour)tour.hidden=account?.access!=='kipper_free';const veil=$('veil');if(veil)veil.style.display=(access?'none':'flex');if($('composer')){$('composer').style.opacity=access?1:.4;$('composer').style.pointerEvents=access?'auto':'none';}const pay=$('payBtn');if(pay)pay.disabled=!!account?.paid;const kb=$('kipperBtn');if(kb)kb.disabled=account?.access==='kipper_free';if($('receipt')){$('receipt').innerHTML='session  <b>'+sessionId+'</b>\\npage     <b>'+fmtDate(today)+'</b>\\ngate     <b>'+(access?'open':'locked')+'</b>\\naccess   <b>'+label+'</b>\\nqueries  <b>receipted</b>';}}
+function guideHasAccess(){return !!account&&(account.paid||account.access==='paid'||account.access==='twitter');}
+function setGate(){const signed=!!account;const access=guideHasAccess();const handle=account?.twitterHandle;const label=account?.access==='twitter'?'twitter verified':account?.paid?'paid':'unpaid';const identity=handle?'@'+handle:account?.email;const acc=$('accStatus');if(acc)acc.textContent=signed?identity+' // '+label:'Signed out.';const ts=$('twitterStatus');if(ts)ts.textContent=account?.access==='twitter'?'Twitter verified. Time machine open.':'OAuth verifies your X handle. Email remains as backup for the original account.';$('payStatus') && ($('payStatus').textContent=access?'Diary open. Query receipts are being logged.':signed?'Signed in, but access is not open. Use Twitter login or email backup.':'No toll paid yet.');const veil=$('veil');if(veil)veil.style.display=(access?'none':'flex');if($('composer')){$('composer').style.opacity=access?1:.4;$('composer').style.pointerEvents=access?'auto':'none';}const pay=$('payBtn');if(pay)pay.disabled=!!account?.paid;if($('receipt')){$('receipt').innerHTML='session  <b>'+sessionId+'</b>\\npage     <b>'+fmtDate(today)+'</b>\\ngate     <b>'+(access?'open':'locked')+'</b>\\naccess   <b>'+label+'</b>\\nqueries  <b>receipted</b>';}}
 async function refreshMe(){try{const r=await api('/auth/me',{method:'GET'});account=r.account;setGate();}catch{account=null;setGate();}}
+const twitterLoginBtn=$('twitterLoginBtn');
+if(twitterLoginBtn)twitterLoginBtn.onclick=()=>{trackGuideEvent('Guide Twitter Login Started');setStatus($('twitterStatus'),'Opening Twitter OAuth…');location.href='/auth/twitter/start';};
 const sendCode=$('sendCode');
 if(sendCode)sendCode.onclick=async()=>{const em=$('email').value.trim();if(!em){setStatus($('accStatus'),'Enter an email first — the code needs somewhere to land.',true);return;}try{trackGuideEvent('Guide Sign In Code Requested');const r=await api('/auth/request-code',{method:'POST',body:JSON.stringify({email:em})});$('gateReturn')&&$('gateReturn').classList.add('codesent');if(r.delivery&&r.delivery.sent){setStatus($('accStatus'),'Code sent by email. Check your inbox.');}else{setStatus($('accStatus'),'Email delivery is not configured. Dev code: '+(r.devCode||'unavailable'),true);}$('code')&&$('code').focus();}catch(err){setStatus($('accStatus'),'Auth error: '+err.message,true);}};
 const verifyBtn=$('verifyBtn');
 if(verifyBtn)verifyBtn.onclick=async()=>{const em=$('email').value.trim();const co=$('code').value.trim();if(co.trim().length<6){setStatus($('accStatus'),'That code is short a few digits.',true);return;}try{trackGuideEvent('Guide Sign In Code Submitted');const r=await api('/auth/verify',{method:'POST',body:JSON.stringify({email:em,code:co})});token=r.token;localStorage.guideAuthToken=token;account=r.account;setGate();trackGuideEvent(account&&account.paid?'Guide Sign In Paid':'Guide Sign In Unpaid');if(account&&account.paid)location.href='/app';}catch(err){setStatus($('accStatus'),'Verify error: '+err.message,true);}};
 const payBtn=$('payBtn');
 if(payBtn)payBtn.onclick=async()=>{const signupEmail=$('email2')?.value.trim()||'';const checkoutEmail=account?.email||signupEmail;if(!checkoutEmail){setStatus($('payStatus'),'Enter an email first — it becomes your account.',true);$('email2')&&$('email2').focus();return;}try{trackGuideEvent('Guide Checkout Started');payBtn.textContent='Creating Checkout…';setStatus($('payStatus'),'Charting course to Stripe checkout…');const successUrl=account?location.origin+'/app?checkout=success':location.origin+'/enter?checkout=success';const r=await api('/checkout/session',{method:'POST',body:JSON.stringify({sessionId,email:checkoutEmail,successUrl,cancelUrl:location.origin+'/enter?checkout=cancelled'})});if(r.checkout.url){location.href=r.checkout.url;return;}payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),r.checkout.error||'Stripe is not configured yet.',true);}catch(err){payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),'Stripe checkout not ready: '+err.message,true);}};
-const kipperBtn=$('kipperBtn');
-if(kipperBtn)kipperBtn.onclick=async()=>{const handle=($('kipperHandle')?.value||'').trim().replace(/^@+/,'');const quaiAddress=($('quaiAddress')?.value||'').trim();if(!handle){setStatus($('kipperStatus'),'Enter your X handle first. Kipper is already wired into that surface.',true);$('kipperHandle')&&$('kipperHandle').focus();return;}try{trackGuideEvent('Guide Kipper Signup Started');kipperBtn.textContent='Writing Kipper receipt…';const body={handle};if(quaiAddress)body.quaiAddress=quaiAddress;const r=await api('/auth/kipper',{method:'POST',body:JSON.stringify(body)});token=r.token;localStorage.guideAuthToken=token;account=r.account;localStorage.guideKipperReceipt=JSON.stringify(r.receipt);setGate();trackGuideEvent('Guide Kipper Signup Completed');setStatus($('kipperStatus'),'Unverified Kipper claim recorded for @'+account.kipperHandle+'. Opening the diary…');location.href='/app';}catch(err){kipperBtn.textContent='Claim unverified Kipper founder access →';setStatus($('kipperStatus'),'Kipper signup error: '+err.message,true);}};
-const twitterVerifyBtn=$('twitterVerifyBtn');
-if(twitterVerifyBtn)twitterVerifyBtn.onclick=()=>{const handle=($('kipperHandle')?.value||account?.kipperHandle||'').trim().replace(/^@+/,'');const quaiAddress=($('quaiAddress')?.value||account?.quaiAddress||'').trim();if(!handle){setStatus($('kipperStatus'),'Enter the X handle you want Twitter to verify first.',true);$('kipperHandle')&&$('kipperHandle').focus();return;}trackGuideEvent('Guide Twitter OAuth Started');const params=new URLSearchParams({handle});if(quaiAddress)params.set('quaiAddress',quaiAddress);location.href='/auth/twitter/start?'+params.toString();};
-const kipperFeedback=$('kipperFeedback');
-if(kipperFeedback)kipperFeedback.onsubmit=async e=>{e.preventDefault();if(account?.access!=='kipper_free'){setStatus($('kipperFeedbackStatus'),'An unverified Kipper founder claim is required before feedback reward intent can be logged.',true);return;}const feedback=($('kipperFeedbackText')?.value||'').trim();if(feedback.length<3){setStatus($('kipperFeedbackStatus'),'Give us one concrete thing. The universe is already vague enough.',true);return;}try{trackGuideEvent('Guide Kipper Feedback Submitted');const r=await api('/kipper/feedback',{method:'POST',body:JSON.stringify({tourStep:$('kipperTourStep').value,feedback,rewardPreference:$('kipperReward').value})});setStatus($('kipperFeedbackStatus'),'Reward intent logged: '+r.receipt.id+'. Settlement later; receipt now.');$('kipperFeedbackText').value='';}catch(err){setStatus($('kipperFeedbackStatus'),'Feedback receipt error: '+err.message,true);}};
 const futureBtn=$('futureBtn');
 if(futureBtn)futureBtn.onclick=async()=>{try{const r=await api('/future-analysis',{method:'POST',body:JSON.stringify({sessionId,day:today,delay:delayFor($('window').value),question:$('futureNote').value||undefined})});setStatus($('futureStatus'),'Queued '+r.request.id+' ('+$('window').value+') for delayed human review.');}catch(err){setStatus($('futureStatus'),'Future queue error: '+err.message,true);}};
 function delayFor(v){return v==='24h'?'24h':v==='72h'?'72h':v==='1w'?'1w':'all';}
@@ -205,9 +201,9 @@ let lastUserMessage='';
   const start=$('bookStart'); if(start) start.onclick=()=>{ close(); location.href='/enter'; };
   const reopen=$('bookReopen'); if(reopen) reopen.onclick=e=>{ e.preventDefault(); open(); };
   let seen=false; try{ seen=localStorage.guideBookSeen==='1'; }catch{}
-  if(!seen && !location.search.includes('checkout=')) setTimeout(open, 600);
+  if(!seen && !location.search.includes('checkout=') && !location.search.includes('twitter=')) setTimeout(open, 600);
 })();
-setGate();refreshMe().finally(()=>{if(location.search.includes('checkout=success')){setStatus($('payStatus'),'Checkout complete. Use Gate I with the same email to open the diary.');setStatus($('accStatus'),'Payment recorded. Request a sign-in code with the same email.');}});
+setGate();refreshMe().finally(()=>{if(location.search.includes('checkout=success')){setStatus($('payStatus'),'Checkout complete. Use the email backup with the same email to open the diary.');setStatus($('accStatus'),'Payment recorded. Request a sign-in code with the same email.');}if(location.search.includes('twitter=verified')){setStatus($('twitterStatus'),'Twitter verified. Welcome back to the time machine.');}});
 `;
 
 export function pageShell(activeNav: string, bodyHtml: string, script: string): string {
@@ -237,15 +233,6 @@ const extraCss = `
 .orbfig{position:relative;min-height:340px}
 .orbfig svg{width:100%;height:auto;display:block}
 .orbfig figcaption{position:static;margin-top:14px;text-align:right;line-height:1.9;max-width:100%;white-space:normal}
-.kipper-tour{margin-bottom:22px;border-color:rgba(226,84,44,.35);background:linear-gradient(150deg,rgba(226,84,44,.08),rgba(18,13,30,.78))}
-.kipper-tour h2{font-size:clamp(24px,3vw,36px);line-height:1.08;margin:12px 0 10px}
-.kipper-tour .sub{color:var(--ink-dim);max-width:72ch}
-.tour-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0;padding:0;list-style:none}
-.tour-steps li{border:1px solid var(--gold-ghost);border-radius:10px;padding:12px;background:rgba(6,4,16,.28);color:var(--ink-dim);font-size:13px}
-.tour-steps strong{display:block;color:var(--gold);margin-bottom:4px}
-.kipper-feedback{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
-.kipper-feedback textarea,.kipper-feedback button,.kipper-feedback .note{grid-column:1 / -1}
-.kipper-feedback textarea{min-height:92px}
 .diary{display:flex;flex-direction:column;min-height:620px}
 .diary-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px dashed var(--gold-ghost)}
 .diary-head .turns{margin-left:auto}

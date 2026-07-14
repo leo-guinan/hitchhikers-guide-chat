@@ -51,6 +51,8 @@ const queryReceiptLog = path.join(dataDir, 'query-receipts.jsonl');
 const kipperFeedbackLog = path.join(dataDir, 'kipper-feedback.jsonl');
 const twitterReceiptLog = path.join(dataDir, 'twitter-receipts.jsonl');
 const defaultOwnerEmails = ['leo@ideanexusventures.com'];
+const ownerTwitterHandle = normalizeXHandle(process.env.GUIDE_OWNER_TWITTER_HANDLE ?? 'leo_guinan');
+const ownerTwitterEmail = (process.env.GUIDE_OWNER_EMAIL ?? 'leo@ideanexusventures.com').toLowerCase();
 
 export type OwnerBackfillSummary = {
   owner: boolean;
@@ -204,6 +206,39 @@ export async function consumeTwitterOAuthState(state: string): Promise<TwitterOA
   return record;
 }
 
+export async function createTwitterLogin(input: { twitterHandle: string; twitterUserId: string }): Promise<{ account: Account; session: AuthSession; receipt: TwitterVerifiedReceipt }> {
+  await initStore();
+  const handle = normalizeXHandle(input.twitterHandle);
+  const email = handle === ownerTwitterHandle ? ownerTwitterEmail : `twitter+${handle}@users.hitchhikersguidetothefuture.com`;
+  const existing = await upsertAccount(email);
+  const now = new Date().toISOString();
+  const account: Account = {
+    ...existing,
+    access: existing.paid ? 'paid' : 'twitter',
+    twitterHandle: handle,
+    kipperHandle: existing.kipperHandle,
+    twitterVerified: true,
+    twitterVerifiedAt: now,
+    twitterUserId: input.twitterUserId,
+    updatedAt: now,
+  };
+  await writeFile(accountPath(account.email), JSON.stringify(account, null, 2));
+  const receipt: TwitterVerifiedReceipt = {
+    id: `tvr_${now.replace(/[-:.TZ]/g, '').slice(0, 17)}_${hash(`${account.id}|${input.twitterUserId}|${now}`).slice(0, 8)}`,
+    type: 'twitter_oauth_login_receipt',
+    accountId: account.id,
+    xHandle: handle,
+    twitterUserId: input.twitterUserId,
+    createdAt: now,
+    verificationStatus: 'twitter_oauth_verified',
+    settlementStatus: 'verified_not_settled',
+  };
+  await writeFile(path.join(twitterReceiptDir, `${receipt.id}.json`), JSON.stringify(receipt, null, 2));
+  await appendFile(twitterReceiptLog, `${JSON.stringify(receipt)}\n`);
+  const session = await createSession(account);
+  return { account, session, receipt };
+}
+
 export async function verifyKipperTwitterHandle(input: { claimedHandle: string; twitterHandle: string; twitterUserId: string; quaiAddress?: string }): Promise<{ account: Account; session: AuthSession; receipt: TwitterVerifiedReceipt }> {
   await initStore();
   const claimed = normalizeXHandle(input.claimedHandle);
@@ -221,7 +256,7 @@ export async function verifyKipperTwitterHandle(input: { claimedHandle: string; 
   await writeFile(accountPath(account.email), JSON.stringify(account, null, 2));
   const receipt: TwitterVerifiedReceipt = {
     id: `tvr_${now.replace(/[-:.TZ]/g, '').slice(0, 17)}_${hash(`${account.id}|${input.twitterUserId}|${now}`).slice(0, 8)}`,
-    type: 'twitter_verified_kipper_receipt',
+    type: 'twitter_oauth_login_receipt',
     accountId: account.id,
     xHandle: returned,
     twitterUserId: input.twitterUserId,
@@ -236,11 +271,12 @@ export async function verifyKipperTwitterHandle(input: { claimedHandle: string; 
 }
 
 export function hasGuideAccess(account: Account): boolean {
-  return account.paid || account.access === 'paid' || account.access === 'kipper_free';
+  return account.paid || account.access === 'paid' || account.access === 'kipper_free' || account.access === 'twitter';
 }
 
-export function accountAccess(account: Account): 'paid' | 'kipper_free' | 'none' {
+export function accountAccess(account: Account): 'paid' | 'kipper_free' | 'twitter' | 'none' {
   if (account.paid || account.access === 'paid') return 'paid';
+  if (account.access === 'twitter') return 'twitter';
   if (account.access === 'kipper_free') return 'kipper_free';
   return 'none';
 }
@@ -252,7 +288,7 @@ export async function recordQueryReceipt(input: { account: Account; day: string;
     id: `qrx_${createdAt.replace(/[-:.TZ]/g, '').slice(0, 17)}_${hash(`${input.account.id}|${input.day}|${input.messageChars}|${input.answerChars}|${createdAt}`).slice(0, 8)}`,
     type: 'guide_query_receipt',
     accountId: input.account.id,
-    access: accountAccess(input.account) === 'paid' ? 'paid' : 'kipper_free',
+    access: accountAccess(input.account) === 'paid' ? 'paid' : accountAccess(input.account) === 'twitter' ? 'twitter' : 'kipper_free',
     day: input.day,
     createdAt,
     messageChars: input.messageChars,
