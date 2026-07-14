@@ -23,6 +23,11 @@ export const EmailAuthVerifySchema = z.object({
   code: z.string().regex(/^\d{6}$/),
 });
 
+export const KipperSignupSchema = z.object({
+  handle: z.string().min(1).max(40).transform((value) => value.trim().replace(/^@+/, '').toLowerCase()),
+  quaiAddress: z.string().min(8).max(120).optional(),
+});
+
 export const ContextRequestSchema = z.object({
   sessionId: z.string().min(1),
   userMessage: z.string().min(1),
@@ -86,6 +91,7 @@ export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 export type EmailAuthRequest = z.infer<typeof EmailAuthRequestSchema>;
 export type EmailAuthVerify = z.infer<typeof EmailAuthVerifySchema>;
+export type KipperSignup = z.infer<typeof KipperSignupSchema>;
 export type ContextRequestInput = z.infer<typeof ContextRequestSchema>;
 export type CheckoutRequest = z.infer<typeof CheckoutRequestSchema>;
 export type FutureAnalysisRequestInput = z.infer<typeof FutureAnalysisRequestSchema>;
@@ -100,8 +106,26 @@ export type Account = {
   createdAt: string;
   updatedAt: string;
   paid: boolean;
+  access?: 'none' | 'paid' | 'kipper_free';
+  kipperHandle?: string;
+  kipperUrl?: string;
+  quaiAddress?: string;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
+};
+
+export type KipperIdentityReceipt = {
+  id: string;
+  type: 'kipper_identity_receipt';
+  accountId: string;
+  xHandle: string;
+  kipperUrl: string;
+  xUrl: string;
+  quaiAddress?: string;
+  createdAt: string;
+  access: 'kipper_free';
+  verificationStatus: 'local_only_pending_kipper_twitter_verification';
+  settlementStatus: 'not_settleable_until_server_verified';
 };
 
 export type AuthSession = {
@@ -206,6 +230,26 @@ export type ChatAnswer = {
     answerChars: number;
     mode: 'model' | 'deterministic-fallback';
     model?: string;
+  };
+};
+
+
+export type QueryReceipt = {
+  id: string;
+  type: 'guide_query_receipt';
+  accountId: string;
+  access: 'paid' | 'kipper_free';
+  day: string;
+  createdAt: string;
+  messageChars: number;
+  answerChars: number;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  modelMode: 'model' | 'deterministic-fallback';
+  model?: string;
+  openRouterTokenBridge: {
+    status: 'measured_not_settled';
+    note: string;
   };
 };
 

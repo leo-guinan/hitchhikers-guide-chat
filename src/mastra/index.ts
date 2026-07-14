@@ -14,24 +14,29 @@ import {
   ImportedItemSearchSchema,
   ImportRunRequestSchema,
   ImportSourceCreateSchema,
+  KipperSignupSchema,
   type Account,
 } from '../domain/schema';
 import { answerChat, pricingPlan, summarizeDiaryPage } from '../domain/engine';
 import { buildDiaryHeatmap } from '../domain/heatmap';
 import { createCheckoutSession, stripePriceId } from '../domain/payments';
 import {
+  accountAccess,
   appendDiaryTurn,
   createContextRequest,
   createFutureAnalysisRequest,
+  createKipperSignup,
   createImportSource,
   ensureOwnerAccountBackfill,
   getDiaryPage,
+  hasGuideAccess,
   getSessionAccount,
   initStore,
   listImportedItems,
   listImportSources,
   listContextRequests,
   markAccountPaid,
+  recordQueryReceipt,
   requestEmailCode,
   runImportSource,
   saveDiaryEntry,
@@ -81,7 +86,7 @@ export const mastra = new Mastra({
       registerApiRoute('/healthz', {
         method: 'GET',
         requiresAuth: false,
-        handler: async (c) => c.json({ ok: true, service: 'hitchhikers-guide-chat', priceUsdMonthly: 42, diaryUnit: 'day', auth: 'email', paywall: true }),
+        handler: async (c) => c.json({ ok: true, service: 'hitchhikers-guide-chat', priceUsdMonthly: 42, diaryUnit: 'day', auth: 'email+kipper', paywall: true, kipperFreeAccess: true }),
       }),
       registerApiRoute('/pricing', {
         method: 'GET',
@@ -112,6 +117,17 @@ export const mastra = new Mastra({
           return c.json({ ok: true, token: session.token, account: publicAccount(paidAccount) });
         },
       }),
+      registerApiRoute('/auth/kipper', {
+        method: 'POST',
+        requiresAuth: false,
+        handler: async (c) => {
+          const parsed = await parseJsonBody(c, KipperSignupSchema);
+          if (parsed instanceof Response) return parsed;
+          const { account, session, receipt } = await createKipperSignup(parsed);
+          await ensureOwnerAccountBackfill(account);
+          return c.json({ ok: true, token: session.token, account: publicAccount(account), receipt }, 201);
+        },
+      }),
       registerApiRoute('/auth/me', {
         method: 'GET',
         requiresAuth: false,
@@ -127,7 +143,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
           const parsed = await parseJsonBody(c, ChatRequestSchema);
           if (parsed instanceof Response) return parsed;
           const body = parsed;
@@ -137,7 +153,8 @@ export const mastra = new Mastra({
           const history = existingPage.turns.map((turn) => ({ role: turn.role, content: turn.content }));
           const answer = await answerChat(account.id, body.message, history, day);
           const updatedPage = await appendDiaryTurn(day, account.id, { role: 'assistant', content: answer.answer });
-          return c.json({ ...answer, diary: { day, turnCount: updatedPage.turns.length, entry: updatedPage.entry } });
+          const queryReceipt = await recordQueryReceipt({ account, day, messageChars: answer.receipt.messageChars, answerChars: answer.receipt.answerChars, mode: answer.receipt.mode, model: answer.receipt.model });
+          return c.json({ ...answer, diary: { day, turnCount: updatedPage.turns.length, entry: updatedPage.entry }, queryReceipt });
         },
       }),
       registerApiRoute('/diary/today', {
@@ -146,7 +163,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
           return c.json({ page: await getDiaryPage(todayKey(), account.id) });
         },
       }),
@@ -156,7 +173,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
           const parsed = parseValue(DiarySearchSchema, { query: c.req.query('query') });
           if (parsed instanceof Response) return parsed;
           const query = parsed.query ?? '';
@@ -169,7 +186,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
           const requestedWeeks = Number(c.req.query('weeks') ?? 53);
           const weeks = Number.isFinite(requestedWeeks) ? Math.max(1, Math.min(104, requestedWeeks)) : 53;
           return c.json({ heatmap: buildDiaryHeatmap(await searchDiaryPages('', account.id), { weeks }) });
@@ -181,7 +198,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
           return c.json({ page: await getDiaryPage(c.req.param('day'), account.id) });
         },
       }),
@@ -191,7 +208,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
           const parsed = await parseJsonBody(c, DiaryCompressionRequestSchema);
           if (parsed instanceof Response) return parsed;
           const page = await getDiaryPage(c.req.param('day'), account.id);
@@ -256,7 +273,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
           const parsed = await parseJsonBody(c, FutureAnalysisRequestSchema);
           if (parsed instanceof Response) return parsed;
           const body = parsed;
@@ -294,7 +311,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
           const parsed = await parseJsonBody(c, ContextRequestSchema);
           if (parsed instanceof Response) return parsed;
           const body = parsed;
@@ -307,7 +324,7 @@ export const mastra = new Mastra({
         handler: async (c) => {
           const account = await accountFromRequest(c.req.raw);
           if (!account) return c.json({ error: 'Sign in with email first.' }, 401);
-          if (!account.paid) return c.json({ error: 'A paid $42/month account is required before chat unlocks.' }, 402);
+          if (!hasGuideAccess(account)) return c.json({ error: 'A paid $42/month account or Kipper founder pass is required before chat unlocks.' }, 402);
           return c.json({ requests: await listContextRequests() });
         },
       }),
@@ -316,7 +333,7 @@ export const mastra = new Mastra({
 });
 
 function publicAccount(account: Account) {
-  return { id: account.id, email: account.email, paid: account.paid };
+  return { id: account.id, email: account.email, paid: account.paid, access: accountAccess(account), kipperHandle: account.kipperHandle, quaiAddress: account.quaiAddress };
 }
 
 async function accountFromRequest(request: Request): Promise<Account | null> {
@@ -328,7 +345,7 @@ async function accountFromRequest(request: Request): Promise<Account | null> {
 async function paidAccountFromRequest(request: Request): Promise<Account | Response> {
   const account = await accountFromRequest(request);
   if (!account) return jsonError('Sign in with email first.', 401);
-  if (!account.paid) return jsonError('A paid $42/month account is required before imports unlock.', 402);
+  if (!hasGuideAccess(account)) return jsonError('A paid $42/month account or Kipper founder pass is required before imports unlock.', 402);
   return account;
 }
 

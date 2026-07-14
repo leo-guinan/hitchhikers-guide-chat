@@ -65,13 +65,12 @@ const enterBody = `
 <section class="boarding" aria-labelledby="boardingTitle">
   <div class="boarding-plate">
     <div class="boarding-head">
-      <span class="annot">Boarding <span class="dot">·</span> two gates <span class="dot">·</span> one star</span>
+      <span class="annot">Boarding <span class="dot">·</span> three gates <span class="dot">·</span> one star</span>
       <h1 id="boardingTitle">Open the diary.</h1>
       <p>
-        One plan, whole sky — <strong>$42/month</strong>. Been aboard before?
-        Sign in on the left. New here? Pay the toll on the right and
-        <strong>your account is created in the same motion</strong>.
-        Both gates lead to the same place.
+        One plan, whole sky — <strong>$42/month</strong>. Kipper founders can enter free while
+        the first audience forms. Either way, the diary opens and the system starts
+        logging query receipts for the future Quai→OpenRouter token bridge.
       </p>
     </div>
 
@@ -119,6 +118,18 @@ const enterBody = `
         <p class="note" id="payStatus" style="margin-top:8px">No toll paid yet.</p>
         <p class="fine">The Atlas and every diary entry stay yours. A sign-in code arrives after checkout.</p>
       </section>
+
+      <section class="boarding-gate kipper" id="gateKipper" aria-labelledby="kipperTitle">
+        <h2 class="annot" id="kipperTitle">Gate III <span class="dot">·</span> Kipper founder pass</h2>
+        <p class="sub">Have a Kipper/X identity? <strong>Enter free</strong>. We start tracking query receipts so Quai can later power the OpenRouter token bridge.</p>
+        <label class="annot dim" for="kipperHandle" hidden>X handle</label>
+        <input type="text" id="kipperHandle" placeholder="@yourhandle" autocomplete="username">
+        <label class="annot dim" for="quaiAddress" hidden>Quai address</label>
+        <input type="text" id="quaiAddress" placeholder="Optional Quai address for future settlement">
+        <button class="btn solid" id="kipperBtn">Claim free Kipper access →</button>
+        <p class="note" id="kipperStatus" style="margin-top:8px">Local Kipper identity receipt first. Server-side X/Kipper verification later.</p>
+        <p class="fine">No transaction. No rebate settlement yet. Just access and query receipts.</p>
+      </section>
     </div>
 
     <div class="boarding-backrow">
@@ -150,7 +161,7 @@ const appBody = `
       </div>
       <div class="veil" id="veil">
         <span class="annot ember">Sealed page <span class="dot">·</span> account gated</span>
-        <p>Today's chat context is behind the gate. <a href="/enter">Open the diary</a> to sign in and subscribe.</p>
+        <p>Today's chat context is behind the gate. <a href="/enter">Open the diary</a> with email, Stripe, or a Kipper founder pass.</p>
         <a class="btn solid" href="/enter" id="veilBtn">Start at $42/month</a>
       </div>
     </section>
@@ -176,12 +187,12 @@ const appBody = `
     }catch(e){}
   }
   await refreshMe();
-  if(!account||!account.paid){ location.href='/enter'; return; }
-  if(account&&account.paid) await loadDiary();
+  if(!guideHasAccess()){ location.href='/enter'; return; }
+  if(guideHasAccess()) await loadDiary();
   $('composer').addEventListener('submit',async e=>{
     e.preventDefault();
     const box=$('ask'); const text=box.value.trim(); if(!text) return;
-    if(!account||!account.paid){ location.href='/enter'; return; }
+    if(!guideHasAccess()){ location.href='/enter'; return; }
     addMsg('you','You',text); box.value=''; lastUserMessage=text;
     try{
       trackGuideEvent('Guide Chat Sent');
@@ -193,7 +204,7 @@ const appBody = `
     }catch(err){ addMsg('guide','Leo · the guide','Error: '+err.message); }
   });
   $('compressBtn').addEventListener('click',async()=>{
-    if(!account||!account.paid){ location.href='/enter'; return; }
+    if(!guideHasAccess()){ location.href='/enter'; return; }
     try{ trackGuideEvent('Guide Diary Compressed'); const r=await api('/diary/'+today+'/compress',{method:'POST',body:JSON.stringify({sessionId})}); $('compressBtn').textContent='Compressed '+r.entry.turnCount+' turns into entry '+r.entry.id; }catch(err){ $('compressBtn').textContent='Compression error: '+err.message; }
   });
   function addMsg(cls,who,text){
@@ -262,7 +273,7 @@ const atlasBody = `
 <script>
 (async function(){
   await refreshMe();
-  if(!account||!account.paid){ location.href='/enter'; return; }
+  if(!guideHasAccess()){ location.href='/enter'; return; }
   const entriesEl=$('entries'); const metaEl=$('atlasMeta');
   async function loadHeatmap(){
     try{
@@ -1108,7 +1119,7 @@ const importsBody = `
 <script>
 (async function(){
   await refreshMe();
-  if(!account||!account.paid){ location.href='/enter'; return; }
+  if(!guideHasAccess()){ location.href='/enter'; return; }
   const sourcesEl=$('importSources');
   const itemsEl=$('importItems');
   const metaEl=$('importsMeta');

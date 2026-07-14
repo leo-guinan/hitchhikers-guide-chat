@@ -14,6 +14,9 @@ import {
   type DiaryPage,
   type FutureAnalysisRequest,
   type FutureAnalysisRequestInput,
+  type KipperIdentityReceipt,
+  type KipperSignup,
+  type QueryReceipt,
   ImportSourceCreateSchema,
   type ImportedItem,
   type ImportedItemSearch,
@@ -31,10 +34,13 @@ const futureDir = path.join(dataDir, 'future-analysis');
 const accountDir = path.join(dataDir, 'accounts');
 const authCodeDir = path.join(dataDir, 'auth-codes');
 const sessionDir = path.join(dataDir, 'sessions');
+const kipperReceiptDir = path.join(dataDir, 'kipper-receipts');
+const queryReceiptDir = path.join(dataDir, 'query-receipts');
 const importSourceDir = path.join(dataDir, 'imports', 'sources');
 const importItemDir = path.join(dataDir, 'imports', 'items');
 const requestLog = path.join(dataDir, 'context-requests.jsonl');
 const futureLog = path.join(dataDir, 'future-analysis.jsonl');
+const queryReceiptLog = path.join(dataDir, 'query-receipts.jsonl');
 const defaultOwnerEmails = ['leo@ideanexusventures.com'];
 
 export type OwnerBackfillSummary = {
@@ -51,6 +57,8 @@ export async function initStore(): Promise<void> {
   await mkdir(accountDir, { recursive: true });
   await mkdir(authCodeDir, { recursive: true });
   await mkdir(sessionDir, { recursive: true });
+  await mkdir(kipperReceiptDir, { recursive: true });
+  await mkdir(queryReceiptDir, { recursive: true });
   await mkdir(importSourceDir, { recursive: true });
   await mkdir(importItemDir, { recursive: true });
 }
@@ -78,15 +86,7 @@ export async function verifyEmailCode(email: string, code: string): Promise<{ ac
   if (record.code !== code) throw new Error('Invalid sign-in code');
   if (Date.parse(record.expiresAt) < Date.now()) throw new Error('Sign-in code expired');
   const account = await upsertAccount(normalized);
-  const createdAt = new Date().toISOString();
-  const session: AuthSession = {
-    token: `sess_${randomBytes(24).toString('hex')}`,
-    accountId: account.id,
-    email: account.email,
-    createdAt,
-    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
-  };
-  await writeFile(sessionPath(session.token), JSON.stringify(session, null, 2));
+  const session = await createSession(account);
   return { account, session };
 }
 
@@ -115,18 +115,106 @@ export async function getAccountByEmail(email: string): Promise<Account | null> 
 
 export async function markAccountPaid(email: string, stripe: { customerId?: string; subscriptionId?: string } = {}): Promise<Account> {
   const account = await upsertAccount(email.toLowerCase());
-  const updated: Account = { ...account, paid: true, updatedAt: new Date().toISOString(), stripeCustomerId: stripe.customerId ?? account.stripeCustomerId, stripeSubscriptionId: stripe.subscriptionId ?? account.stripeSubscriptionId };
+  const updated: Account = { ...account, paid: true, access: 'paid', updatedAt: new Date().toISOString(), stripeCustomerId: stripe.customerId ?? account.stripeCustomerId, stripeSubscriptionId: stripe.subscriptionId ?? account.stripeSubscriptionId };
   await writeFile(accountPath(updated.email), JSON.stringify(updated, null, 2));
   return updated;
+}
+
+export async function createKipperSignup(input: KipperSignup): Promise<{ account: Account; session: AuthSession; receipt: KipperIdentityReceipt }> {
+  await initStore();
+  const handle = input.handle.trim().replace(/^@+/, '').toLowerCase();
+  const email = `kipper+${handle}@users.hitchhikersguidetothefuture.com`;
+  const existing = await upsertAccount(email);
+  const now = new Date().toISOString();
+  const kipperUrl = 'https://kipper.money/';
+  const account: Account = {
+    ...existing,
+    access: existing.paid ? 'paid' : 'kipper_free',
+    kipperHandle: handle,
+    kipperUrl,
+    quaiAddress: input.quaiAddress ?? existing.quaiAddress,
+    updatedAt: now,
+  };
+  await writeFile(accountPath(account.email), JSON.stringify(account, null, 2));
+  const receipt: KipperIdentityReceipt = {
+    id: `kir_${now.replace(/[-:.TZ]/g, '').slice(0, 14)}_${hash(`${handle}|${now}`).slice(0, 8)}`,
+    type: 'kipper_identity_receipt',
+    accountId: account.id,
+    xHandle: handle,
+    kipperUrl,
+    xUrl: `https://x.com/${handle}`,
+    quaiAddress: input.quaiAddress,
+    createdAt: now,
+    access: 'kipper_free',
+    verificationStatus: 'local_only_pending_kipper_twitter_verification',
+    settlementStatus: 'not_settleable_until_server_verified',
+  };
+  await writeFile(path.join(kipperReceiptDir, `${receipt.id}.json`), JSON.stringify(receipt, null, 2));
+  const session = await createSession(account);
+  return { account, session, receipt };
+}
+
+export function hasGuideAccess(account: Account): boolean {
+  return account.paid || account.access === 'paid' || account.access === 'kipper_free';
+}
+
+export function accountAccess(account: Account): 'paid' | 'kipper_free' | 'none' {
+  if (account.paid || account.access === 'paid') return 'paid';
+  if (account.access === 'kipper_free') return 'kipper_free';
+  return 'none';
+}
+
+export async function recordQueryReceipt(input: { account: Account; day: string; messageChars: number; answerChars: number; mode: 'model' | 'deterministic-fallback'; model?: string }): Promise<QueryReceipt> {
+  await initStore();
+  const createdAt = new Date().toISOString();
+  const receipt: QueryReceipt = {
+    id: `qrx_${createdAt.replace(/[-:.TZ]/g, '').slice(0, 17)}_${hash(`${input.account.id}|${input.day}|${input.messageChars}|${input.answerChars}|${createdAt}`).slice(0, 8)}`,
+    type: 'guide_query_receipt',
+    accountId: input.account.id,
+    access: accountAccess(input.account) === 'paid' ? 'paid' : 'kipper_free',
+    day: input.day,
+    createdAt,
+    messageChars: input.messageChars,
+    answerChars: input.answerChars,
+    estimatedInputTokens: estimateTokens(input.messageChars),
+    estimatedOutputTokens: estimateTokens(input.answerChars),
+    modelMode: input.mode,
+    model: input.model,
+    openRouterTokenBridge: {
+      status: 'measured_not_settled',
+      note: 'Query tokens are measured for a future Quai-to-OpenRouter token bridge. No conversion or settlement has occurred.',
+    },
+  };
+  await writeFile(path.join(queryReceiptDir, `${receipt.id}.json`), JSON.stringify(receipt, null, 2));
+  await appendFile(queryReceiptLog, `${JSON.stringify(receipt)}\n`);
+  return receipt;
 }
 
 async function upsertAccount(email: string): Promise<Account> {
   const existing = await getAccountByEmail(email);
   if (existing) return existing;
   const createdAt = new Date().toISOString();
-  const account: Account = { id: `acct_${hash(email).slice(0, 12)}`, email, createdAt, updatedAt: createdAt, paid: false };
+  const account: Account = { id: `acct_${hash(email).slice(0, 12)}`, email, createdAt, updatedAt: createdAt, paid: false, access: 'none' };
   await writeFile(accountPath(email), JSON.stringify(account, null, 2));
   return account;
+}
+
+
+async function createSession(account: Account): Promise<AuthSession> {
+  const createdAt = new Date().toISOString();
+  const session: AuthSession = {
+    token: `sess_${randomBytes(24).toString('hex')}`,
+    accountId: account.id,
+    email: account.email,
+    createdAt,
+    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60_000).toISOString(),
+  };
+  await writeFile(sessionPath(session.token), JSON.stringify(session, null, 2));
+  return session;
+}
+
+function estimateTokens(chars: number): number {
+  return Math.max(1, Math.ceil(chars / 4));
 }
 
 export async function createContextRequest(input: ContextRequestInput): Promise<ContextRequest> {
