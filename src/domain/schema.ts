@@ -93,6 +93,15 @@ export const ImportedItemSearchSchema = z.object({
   limit: z.number().int().min(1).max(200).default(50),
 });
 
+export const UserActionSchema = z.object({
+  action: z.string().min(1).max(80).regex(/^[a-z0-9_:-]+$/),
+  pathway: z.string().min(1).max(40).regex(/^[a-z0-9_:-]+$/),
+  sessionId: z.string().min(1).max(160),
+  path: z.string().min(1).max(240).optional(),
+  detail: z.string().max(500).optional(),
+  metadata: z.record(z.string(), z.string().max(200)).optional(),
+});
+
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 export type ChatRequest = z.infer<typeof ChatRequestSchema>;
 export type EmailAuthRequest = z.infer<typeof EmailAuthRequestSchema>;
@@ -106,6 +115,7 @@ export type ImportSourceKind = z.infer<typeof ImportSourceKindSchema>;
 export type ImportSourceCreateInput = z.infer<typeof ImportSourceCreateSchema>;
 export type ImportRunRequest = z.infer<typeof ImportRunRequestSchema>;
 export type ImportedItemSearch = z.infer<typeof ImportedItemSearchSchema>;
+export type UserActionInput = z.infer<typeof UserActionSchema>;
 
 export type Account = {
   id: string;
@@ -310,4 +320,26 @@ export type PricingPlan = {
   interval: 'month';
   promise: string;
   includes: string[];
+};
+
+export type UserActionEvent = UserActionInput & {
+  id: string;
+  createdAt: string;
+  accountId?: string;
+  email?: string;
+  handle?: string;
+  access?: Account['access'];
+};
+
+export type UserActionDashboard = {
+  generatedAt: string;
+  totals: {
+    events: number;
+    users: number;
+    identifiedUsers: number;
+  };
+  funnel: Array<{ action: string; events: number; users: number }>;
+  pathways: Array<{ pathway: string; events: number; users: number }>;
+  recentUsers: Array<{ userKey: string; handle?: string; email?: string; access?: Account['access']; events: number; firstSeen: string; lastSeen: string; lastAction: string; lastPath?: string }>;
+  recentEvents: UserActionEvent[];
 };

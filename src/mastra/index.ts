@@ -16,6 +16,7 @@ import {
   ImportSourceCreateSchema,
   KipperFeedbackSchema,
   KipperSignupSchema,
+  UserActionSchema,
   type Account,
 } from '../domain/schema';
 import { answerChat, pricingPlan, rankDiaryPagesForQuery, summarizeDiaryPage } from '../domain/engine';
@@ -32,6 +33,7 @@ import {
   ensureOwnerAccountBackfill,
   getDiaryPage,
   hasGuideAccess,
+  getUserActionDashboard,
   getSessionAccount,
   initStore,
   listImportedItems,
@@ -40,6 +42,7 @@ import {
   markAccountPaid,
   recordKipperFeedback,
   recordQueryReceipt,
+  recordUserAction,
   requestEmailCode,
   runImportSource,
   saveDiaryEntry,
@@ -50,7 +53,7 @@ import {
   verifyEmailCode,
   verifyKipperTwitterHandle,
 } from '../domain/store';
-import { appHtml, searchHtml, enterHtml, appPageHtml, hotspotsHtml, importsHtml } from '../ui/app-html';
+import { appHtml, searchHtml, enterHtml, appPageHtml, hotspotsHtml, importsHtml, adminActionsHtml } from '../ui/app-html';
 import { buildTwitterOAuthStart, exchangeTwitterCode, fetchTwitterUser, twitterOAuthConfigured, twitterRedirectUri } from '../domain/twitter-oauth';
 
 await initStore();
@@ -89,6 +92,20 @@ export const mastra = new Mastra({
         method: 'GET',
         requiresAuth: false,
         handler: async () => new Response(importsHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+      }),
+      registerApiRoute('/admin/actions', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async () => new Response(adminActionsHtml, { headers: { 'content-type': 'text/html; charset=utf-8' } }),
+      }),
+      registerApiRoute('/admin/actions.json', {
+        method: 'GET',
+        requiresAuth: false,
+        handler: async (c) => {
+          const account = await ownerAccountFromRequest(c.req.raw);
+          if (account instanceof Response) return account;
+          return c.json({ dashboard: await getUserActionDashboard() });
+        },
       }),
       registerApiRoute('/healthz', {
         method: 'GET',
@@ -162,6 +179,7 @@ export const mastra = new Mastra({
             const twitterUser = await fetchTwitterUser(accessToken);
             const { account, session, receipt } = await createTwitterLogin({ twitterHandle: twitterUser.username, twitterUserId: twitterUser.id });
             await ensureOwnerAccountBackfill(account);
+            await recordUserAction({ action: 'twitter_login_success', pathway: 'auth', sessionId: `twitter:${twitterUser.id}`, path: '/auth/twitter/callback' }, account);
             return htmlResponse(twitterResultHtml({ ok: true, title: `Signed in as @${account.twitterHandle ?? twitterUser.username}`, message: 'Twitter OAuth verified your handle. The time machine is open.', token: session.token, receiptId: receipt.id }));
           } catch (error) {
             return htmlResponse(twitterResultHtml({ ok: false, title: 'Twitter verification failed', message: (error as Error).message }), 400);
@@ -207,7 +225,18 @@ export const mastra = new Mastra({
           const answer = await answerChat(account.id, body.message, history, day, pastPages);
           const updatedPage = await appendDiaryTurn(day, account.id, { role: 'assistant', content: answer.answer });
           const queryReceipt = await recordQueryReceipt({ account, day, messageChars: answer.receipt.messageChars, answerChars: answer.receipt.answerChars, mode: answer.receipt.mode, model: answer.receipt.model });
+          await recordUserAction({ action: 'chat_send', pathway: 'diary', sessionId: body.sessionId, path: '/app', detail: `message_chars:${body.message.length}` }, account);
           return c.json({ ...answer, diary: { day, turnCount: updatedPage.turns.length, entry: updatedPage.entry }, queryReceipt });
+        },
+      }),
+      registerApiRoute('/actions/track', {
+        method: 'POST',
+        requiresAuth: false,
+        handler: async (c) => {
+          const parsed = await parseJsonBody(c, UserActionSchema);
+          if (parsed instanceof Response) return parsed;
+          const account = await accountFromRequest(c.req.raw);
+          return c.json({ ok: true, event: await recordUserAction(parsed, account) }, 201);
         },
       }),
       registerApiRoute('/diary/today', {
@@ -403,6 +432,15 @@ async function paidAccountFromRequest(request: Request): Promise<Account | Respo
   return account;
 }
 
+
+async function ownerAccountFromRequest(request: Request): Promise<Account | Response> {
+  const account = await accountFromRequest(request);
+  if (!account) return jsonError('Sign in as the owner first.', 401);
+  const ownerEmail = (process.env.GUIDE_OWNER_EMAIL ?? 'leo@ideanexusventures.com').toLowerCase();
+  const ownerHandle = (process.env.GUIDE_OWNER_TWITTER_HANDLE ?? 'leo_guinan').replace(/^@+/, '').toLowerCase();
+  if (account.email !== ownerEmail && account.twitterHandle !== ownerHandle) return jsonError('Owner dashboard access required.', 403);
+  return account;
+}
 
 function publicOrigin(requestUrl: string): string {
   return (process.env.GUIDE_PUBLIC_ORIGIN ?? new URL(requestUrl).origin).replace(/\/$/, '');

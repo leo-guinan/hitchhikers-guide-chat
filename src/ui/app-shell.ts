@@ -152,8 +152,19 @@ const heroHtml = `
 
 const sharedScript = `
 const $=id=>document.getElementById(id);
-function trackGuideEvent(name){try{if(window.fathom)window.fathom.trackEvent(name);}catch{}}
+function trackGuideEvent(name){try{if(window.fathom)window.fathom.trackEvent(name);}catch{} const mapped=actionForEvent(name); if(mapped) trackGuideAction(mapped.action,mapped.pathway,mapped.detail);}
 const sessionId=localStorage.guideSessionId ||= crypto.randomUUID();
+function trackGuideAction(action,pathway,detail){try{const body=JSON.stringify({action,pathway,sessionId,path:location.pathname,detail}); if(navigator.sendBeacon&&!localStorage.guideAuthToken){navigator.sendBeacon('/actions/track',new Blob([body],{type:'application/json'}));return;} fetch('/actions/track',{method:'POST',headers:{'content-type':'application/json',...authHeaders()},body,keepalive:true}).catch(()=>{});}catch{}}
+function actionForEvent(name){return {
+  'Guide Twitter Login Started':{action:'twitter_login_start',pathway:'auth'},
+  'Guide Sign In Code Requested':{action:'email_code_request',pathway:'auth'},
+  'Guide Sign In Code Submitted':{action:'email_code_submit',pathway:'auth'},
+  'Guide Sign In Paid':{action:'email_signin_paid',pathway:'auth'},
+  'Guide Sign In Unpaid':{action:'email_signin_unpaid',pathway:'auth'},
+  'Guide Checkout Started':{action:'checkout_start',pathway:'payment'},
+  'Guide Chat Sent':{action:'chat_send_client',pathway:'diary'},
+  'Guide Diary Compressed':{action:'diary_compress',pathway:'diary'}
+}[name];}
 const today=new Date().toISOString().slice(0,10);
 let token=localStorage.guideAuthToken||'';let account=null;
 function authHeaders(){return token?{authorization:'Bearer '+token}:{};}
@@ -172,10 +183,10 @@ if(verifyBtn)verifyBtn.onclick=async()=>{const em=$('email').value.trim();const 
 const payBtn=$('payBtn');
 if(payBtn)payBtn.onclick=async()=>{const signupEmail=$('email2')?.value.trim()||'';const checkoutEmail=account?.email||signupEmail;if(!checkoutEmail){setStatus($('payStatus'),'Enter an email first — it becomes your account.',true);$('email2')&&$('email2').focus();return;}try{trackGuideEvent('Guide Checkout Started');payBtn.textContent='Creating Checkout…';setStatus($('payStatus'),'Charting course to Stripe checkout…');const successUrl=account?location.origin+'/app?checkout=success':location.origin+'/enter?checkout=success';const r=await api('/checkout/session',{method:'POST',body:JSON.stringify({sessionId,email:checkoutEmail,successUrl,cancelUrl:location.origin+'/enter?checkout=cancelled'})});if(r.checkout.url){location.href=r.checkout.url;return;}payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),r.checkout.error||'Stripe is not configured yet.',true);}catch(err){payBtn.textContent='Start at $42/month →';setStatus($('payStatus'),'Stripe checkout not ready: '+err.message,true);}};
 const futureBtn=$('futureBtn');
-if(futureBtn)futureBtn.onclick=async()=>{try{const r=await api('/future-analysis',{method:'POST',body:JSON.stringify({sessionId,day:today,delay:delayFor($('window').value),question:$('futureNote').value||undefined})});setStatus($('futureStatus'),'Queued '+r.request.id+' ('+$('window').value+') for delayed human review.');}catch(err){setStatus($('futureStatus'),'Future queue error: '+err.message,true);}};
+if(futureBtn)futureBtn.onclick=async()=>{try{trackGuideAction('future_request','future',$('window').value);const r=await api('/future-analysis',{method:'POST',body:JSON.stringify({sessionId,day:today,delay:delayFor($('window').value),question:$('futureNote').value||undefined})});setStatus($('futureStatus'),'Queued '+r.request.id+' ('+$('window').value+') for delayed human review.');}catch(err){setStatus($('futureStatus'),'Future queue error: '+err.message,true);}};
 function delayFor(v){return v==='24h'?'24h':v==='72h'?'72h':v==='1w'?'1w':'all';}
 const humanBtn=$('humanBtn');
-if(humanBtn)humanBtn.onclick=async()=>{const q=$('humanAsk').value.trim();if(!q){setStatus($('humanStatus'),'Tell the human what to look up first.',true);return;}try{const r=await api('/context-requests',{method:'POST',body:JSON.stringify({sessionId,userMessage:lastUserMessage||'(manual context request)',missingContext:q,urgency:$('urgency').value,contact:$('contact').value||undefined,source:'manual',diaryDay:today})});setStatus($('humanStatus'),'Request '+r.request.id+' logged ('+$('urgency').value+'). An operator will pick it up.');}catch(err){setStatus($('humanStatus'),'Error: '+err.message,true);}};
+if(humanBtn)humanBtn.onclick=async()=>{const q=$('humanAsk').value.trim();if(!q){setStatus($('humanStatus'),'Tell the human what to look up first.',true);return;}try{trackGuideAction('human_context_request','human_context',$('urgency').value);const r=await api('/context-requests',{method:'POST',body:JSON.stringify({sessionId,userMessage:lastUserMessage||'(manual context request)',missingContext:q,urgency:$('urgency').value,contact:$('contact').value||undefined,source:'manual',diaryDay:today})});setStatus($('humanStatus'),'Request '+r.request.id+' logged ('+$('urgency').value+'). An operator will pick it up.');}catch(err){setStatus($('humanStatus'),'Error: '+err.message,true);}};
 let lastUserMessage='';
 (function bookOnboarding(){
   const overlay=$('book'); if(!overlay) return;
@@ -203,6 +214,7 @@ let lastUserMessage='';
   let seen=false; try{ seen=localStorage.guideBookSeen==='1'; }catch{}
   if(!seen && !location.search.includes('checkout=') && !location.search.includes('twitter=')) setTimeout(open, 600);
 })();
+(function trackPageView(){const map={'/':'entry_view','/enter':'enter_view','/app':'app_view','/search':'atlas_view','/imports':'import_view','/hotspots':'hotspots_view','/admin/actions':'admin_actions_view'}; const action=map[location.pathname]; if(action) trackGuideAction(action,action.replace(/_view$/,''));})();
 setGate();refreshMe().finally(()=>{if(location.search.includes('checkout=success')){setStatus($('payStatus'),'Checkout complete. Use the email backup with the same email to open the diary.');setStatus($('accStatus'),'Payment recorded. Request a sign-in code with the same email.');}if(location.search.includes('twitter=verified')){setStatus($('twitterStatus'),'Twitter verified. Welcome back to the time machine.');}});
 `;
 
@@ -337,6 +349,18 @@ const extraCss = `
 .source-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
 .source-actions .btn{width:auto;padding:10px 13px;font-size:10px;letter-spacing:.16em}
 .imports-search{display:flex;gap:12px;margin:16px 0 12px}
+.admin-actions{padding:58px 0 34px}
+.admin-lede{color:var(--ink-dim);max-width:72ch;margin:8px 0 24px}
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 22px}
+.metric,.admin-panel{background:rgba(10,8,18,.58);border:1px solid var(--gold-ghost);border-radius:14px;padding:18px}
+.metric b{display:block;font-size:28px;color:var(--gold);margin-top:8px}
+.admin-panel{margin-top:18px;overflow:auto}
+.admin-panel h3{font-size:18px;margin-bottom:14px}
+.funnel-bars{display:grid;gap:10px}
+.funnel-row{display:grid;grid-template-columns:190px 90px 1fr 80px;gap:12px;align-items:center;font-family:var(--mono);font-size:11px;color:var(--ink-dim)}
+.funnel-row span{color:var(--gold);text-transform:uppercase;letter-spacing:.12em}.funnel-row b{color:var(--ink);font-weight:400}.funnel-row i{height:10px;border-radius:999px;background:linear-gradient(90deg,var(--gold),var(--ember));display:block}.funnel-row em{font-style:normal;text-align:right}
+.pathway-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.path-card{border:1px solid var(--gold-ghost);border-radius:12px;padding:14px;background:rgba(6,4,16,.35)}.path-card b{display:block;color:var(--gold);font-size:26px;margin-top:8px}.path-card small{color:var(--ink-dim)}
+.admin-table table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}.admin-table th,.admin-table td{border-bottom:1px solid var(--gold-ghost);padding:9px 8px;text-align:left;white-space:nowrap}.admin-table th{color:var(--gold);text-transform:uppercase;letter-spacing:.14em}.admin-table td{color:var(--ink-dim)}
 .imports-search input{margin:0}
 .imports-search .btn{width:auto;padding:0 20px}
 .import-item .meta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}

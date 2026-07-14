@@ -21,6 +21,10 @@ import {
   type QueryReceipt,
   type TwitterOAuthState,
   type TwitterVerifiedReceipt,
+  UserActionSchema,
+  type UserActionDashboard,
+  type UserActionEvent,
+  type UserActionInput,
   ImportSourceCreateSchema,
   type ImportedItem,
   type ImportedItemSearch,
@@ -50,6 +54,7 @@ const futureLog = path.join(dataDir, 'future-analysis.jsonl');
 const queryReceiptLog = path.join(dataDir, 'query-receipts.jsonl');
 const kipperFeedbackLog = path.join(dataDir, 'kipper-feedback.jsonl');
 const twitterReceiptLog = path.join(dataDir, 'twitter-receipts.jsonl');
+const userActionLog = path.join(dataDir, 'user-actions.jsonl');
 const defaultOwnerEmails = ['leo@ideanexusventures.com'];
 const ownerTwitterHandle = normalizeXHandle(process.env.GUIDE_OWNER_TWITTER_HANDLE ?? 'leo_guinan');
 const ownerTwitterEmail = (process.env.GUIDE_OWNER_EMAIL ?? 'leo@ideanexusventures.com').toLowerCase();
@@ -305,6 +310,65 @@ export async function recordQueryReceipt(input: { account: Account; day: string;
   await writeFile(path.join(queryReceiptDir, `${receipt.id}.json`), JSON.stringify(receipt, null, 2));
   await appendFile(queryReceiptLog, `${JSON.stringify(receipt)}\n`);
   return receipt;
+}
+
+
+export async function recordUserAction(input: UserActionInput, account?: Account | null): Promise<UserActionEvent> {
+  await initStore();
+  const parsed = UserActionSchema.parse(input);
+  const createdAt = new Date().toISOString();
+  const event: UserActionEvent = {
+    ...parsed,
+    id: `act_${createdAt.replace(/[-:.TZ]/g, '').slice(0, 17)}_${hash(`${parsed.sessionId}|${parsed.action}|${createdAt}`).slice(0, 8)}`,
+    createdAt,
+    accountId: account?.id,
+    email: account?.email,
+    handle: account?.twitterHandle ?? account?.kipperHandle,
+    access: account?.access,
+  };
+  await appendFile(userActionLog, `${JSON.stringify(event)}
+`);
+  return event;
+}
+
+export async function getUserActionDashboard(limit = 200): Promise<UserActionDashboard> {
+  await initStore();
+  const events = (await readJsonl<UserActionEvent>(userActionLog)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const sessionAccounts = new Map<string, string>();
+  for (const event of events) {
+    if (event.accountId) sessionAccounts.set(event.sessionId, event.accountId);
+  }
+  const userKey = (event: UserActionEvent) => event.accountId ?? sessionAccounts.get(event.sessionId) ?? `anon:${event.sessionId}`;
+  const recentEvents = [...events].reverse().slice(0, limit);
+  const actions = new Map<string, UserActionEvent[]>();
+  const pathways = new Map<string, UserActionEvent[]>();
+  const users = new Map<string, UserActionEvent[]>();
+  for (const event of events) {
+    mapPush(actions, event.action, event);
+    mapPush(pathways, event.pathway, event);
+    mapPush(users, userKey(event), event);
+  }
+  const funnelOrder = ['entry_view', 'enter_view', 'twitter_login_start', 'twitter_login_success', 'app_view', 'chat_send', 'branch_past', 'branch_present', 'branch_future', 'diary_compress', 'future_request', 'human_context_request', 'atlas_view', 'import_view'];
+  const funnel = Array.from(actions.entries())
+    .map(([action, rows]) => ({ action, events: rows.length, users: uniqueCount(rows.map(userKey)) }))
+    .sort((a, b) => (funnelOrder.indexOf(a.action) < 0 ? 999 : funnelOrder.indexOf(a.action)) - (funnelOrder.indexOf(b.action) < 0 ? 999 : funnelOrder.indexOf(b.action)) || b.events - a.events);
+  const pathwayRows = Array.from(pathways.entries())
+    .map(([pathway, rows]) => ({ pathway, events: rows.length, users: uniqueCount(rows.map(userKey)) }))
+    .sort((a, b) => b.events - a.events || a.pathway.localeCompare(b.pathway));
+  const recentUsers = Array.from(users.entries()).map(([key, rows]) => {
+    const sorted = rows.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    return { userKey: key, handle: last.handle, email: last.email, access: last.access, events: sorted.length, firstSeen: first.createdAt, lastSeen: last.createdAt, lastAction: last.action, lastPath: last.path };
+  }).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen)).slice(0, 80);
+  return {
+    generatedAt: new Date().toISOString(),
+    totals: { events: events.length, users: users.size, identifiedUsers: Array.from(users.keys()).filter((key) => !key.startsWith('anon:')).length },
+    funnel,
+    pathways: pathwayRows,
+    recentUsers,
+    recentEvents,
+  };
 }
 
 async function upsertAccount(email: string): Promise<Account> {
@@ -622,6 +686,27 @@ function diarySearchText(page: DiaryPage): string {
 
 function importedItemSearchText(item: ImportedItem): string {
   return [item.title, item.text, item.url, item.sourceLabel, item.sourceKind, item.day].filter(Boolean).join('\n').toLowerCase();
+}
+
+
+async function readJsonl<T>(file: string): Promise<T[]> {
+  try {
+    const text = await readFile(file, 'utf8');
+    return text.split('\n').filter(Boolean).map((line) => JSON.parse(line) as T);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+function mapPush<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const rows = map.get(key) ?? [];
+  rows.push(value);
+  map.set(key, rows);
+}
+
+function uniqueCount(values: string[]): number {
+  return new Set(values).size;
 }
 
 function isOwnerAccount(account: Account): boolean {

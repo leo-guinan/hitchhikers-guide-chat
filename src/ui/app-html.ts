@@ -242,6 +242,7 @@ const appBody = `
     return {title:raw.slice(1,mid),href,detail:rest.startsWith('—')?rest.slice(1).trim():rest};
   }
   function takeDiaryBranch(branch){
+    trackGuideAction('branch_'+branch.kind,branch.kind,branch.title||branch.text);
     if(branch.href){ location.href=branch.href; return; }
     const box=$('ask'); if(!box) return;
     const prompt=branch.kind==='present'?'Say more about this present thread: ':branch.kind==='future'?'Help me explore this future question: ':'Follow this past thread: ';
@@ -1060,6 +1061,57 @@ function hotspotCard(row: HotspotRow): string {
   </article>`;
 }
 
+const adminActionsBody = `
+<section class="admin-actions" aria-labelledby="actionsTitle">
+  <div class="atlas-head">
+    <h2 id="actionsTitle">User pathway dashboard</h2>
+    <span class="annot dim" id="actionsMeta">loading events…</span>
+  </div>
+  <p class="admin-lede">First-party action events for the Twitter groupchat launch. Users are stitched from anonymous session into identified account once they sign in.</p>
+  <div class="metric-grid" id="actionMetrics"></div>
+  <section class="admin-panel">
+    <h3>Funnel</h3>
+    <div class="funnel-bars" id="funnelBars"></div>
+  </section>
+  <section class="admin-panel">
+    <h3>Pathways</h3>
+    <div class="pathway-grid" id="pathwayGrid"></div>
+  </section>
+  <section class="admin-panel">
+    <h3>Recent users</h3>
+    <div class="admin-table" id="recentUsers"></div>
+  </section>
+  <section class="admin-panel">
+    <h3>Recent events</h3>
+    <div class="admin-table" id="recentEvents"></div>
+  </section>
+</section>
+<script>
+(async function(){
+  await refreshMe();
+  if(!account){ location.href='/enter'; return; }
+  try{
+    const r=await api('/admin/actions.json',{method:'GET'});
+    renderActionDashboard(r.dashboard);
+  }catch(err){
+    $('actionsMeta').textContent='dashboard error: '+err.message;
+  }
+  function renderActionDashboard(d){
+    $('actionsMeta').textContent=d.totals.events+' events · '+d.totals.users+' users · '+d.totals.identifiedUsers+' identified';
+    $('actionMetrics').innerHTML=metric('Events',d.totals.events)+metric('Users',d.totals.users)+metric('Identified',d.totals.identifiedUsers)+metric('Updated',new Date(d.generatedAt).toLocaleTimeString());
+    const max=Math.max(1,...d.funnel.map(x=>x.users));
+    $('funnelBars').innerHTML=d.funnel.map(x=>'<div class="funnel-row"><span>'+esc(x.action)+'</span><b>'+x.users+' users</b><i style="width:'+Math.max(6,Math.round(x.users/max*100))+'%"></i><em>'+x.events+' events</em></div>').join('');
+    $('pathwayGrid').innerHTML=d.pathways.map(x=>'<div class="path-card"><span class="annot">'+esc(x.pathway)+'</span><b>'+x.users+'</b><small>'+x.events+' events</small></div>').join('');
+    $('recentUsers').innerHTML=table(['user','handle/email','events','last action','last seen'],d.recentUsers.map(u=>[short(u.userKey),u.handle?'@'+u.handle:(u.email||'anonymous'),u.events,u.lastAction,new Date(u.lastSeen).toLocaleString()]));
+    $('recentEvents').innerHTML=table(['time','user','pathway','action','path'],d.recentEvents.map(e=>[new Date(e.createdAt).toLocaleTimeString(),e.handle?'@'+e.handle:(e.email||short(e.accountId||e.sessionId)),e.pathway,e.action,e.path||'—']));
+  }
+  function metric(label,value){return '<div class="metric"><span class="annot">'+esc(label)+'</span><b>'+esc(String(value))+'</b></div>';}
+  function table(headers,rows){return '<table><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(String(c))+'</td>').join('')+'</tr>').join('')+'</tbody></table>';}
+  function short(v){return String(v||'').replace(/^acct_/,'acct_').slice(0,18);}
+  function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+})();
+</script>`;
+
 const hotspotsBody = `
 <section class="hotspots">
   <div class="hotspots-hero">
@@ -1262,3 +1314,4 @@ export const appPageHtml = pageShell('today', appBody, '');
 export const searchHtml = pageShell('atlas', atlasBody, '');
 export const hotspotsHtml = pageShell('hotspots', hotspotsBody, '');
 export const importsHtml = pageShell('imports', importsBody, '');
+export const adminActionsHtml = pageShell('admin', adminActionsBody, '');

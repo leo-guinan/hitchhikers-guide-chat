@@ -15,10 +15,10 @@ npm run smoke
 
 echo "== local_ci: rendered HTML contract =="
 node --import tsx - <<'JS'
-import { appHtml, enterHtml, appPageHtml, searchHtml, hotspotsHtml, importsHtml } from './src/ui/app-html.ts';
+import { appHtml, enterHtml, appPageHtml, searchHtml, hotspotsHtml, importsHtml, adminActionsHtml } from './src/ui/app-html.ts';
 import vm from 'node:vm';
 
-const pages = { appHtml, enterHtml, appPageHtml, searchHtml, hotspotsHtml, importsHtml };
+const pages = { appHtml, enterHtml, appPageHtml, searchHtml, hotspotsHtml, importsHtml, adminActionsHtml };
 const requiredInEveryPage = [
   'https://cdn.usefathom.com/script.js',
   'data-site="LLFJJYXQ"',
@@ -40,7 +40,7 @@ const eventChecks = [
 for (const [html, eventName] of eventChecks) {
   if (!html.includes(eventName)) throw new Error(`missing analytics event ${eventName}`);
 }
-for (const [name, html] of Object.entries({ appPageHtml, searchHtml, importsHtml })) {
+for (const [name, html] of Object.entries({ appPageHtml, searchHtml, importsHtml, adminActionsHtml })) {
   const refreshIndex = html.indexOf('async function refreshMe');
   const firstCallIndex = html.indexOf('await refreshMe()');
   if (refreshIndex < 0 || firstCallIndex < 0 || refreshIndex > firstCallIndex) {
@@ -51,6 +51,7 @@ for (const [name, html] of Object.entries({ appPageHtml, searchHtml, importsHtml
 }
 if (!hotspotsHtml.includes('How a private AI furnace became a public thesis.')) throw new Error('hotspots page missing headline');
 if (!hotspotsHtml.includes('Problematic pattern to watch')) throw new Error('hotspots page missing risk analysis');
+if (!adminActionsHtml.includes('User pathway dashboard')) throw new Error('admin actions dashboard missing headline');
 if (!appPageHtml.includes('renderDiaryBranches')) throw new Error('app page missing diary branch renderer');
 for (const branch of ["'past'", "'present'", "'future'", "'data-branch'"]) {
   if (!appPageHtml.includes(branch)) throw new Error(`app page missing diary branch marker ${branch}`);
